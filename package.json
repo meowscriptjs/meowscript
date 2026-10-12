@@ -1,0 +1,34 @@
+{
+  "name": "@meowscriptjs/meowscript",
+  "version": "1.0.0",
+  "description": "MeowScript (.ms) — a catalog-driven DSL compiler that emits TurboWarp / Scratch .sb3 projects.",
+  "type": "module",
+  "license": "MIT",
+  "main": "src/index.js",
+  "bin": {
+    "meowscript": "bin/meowscript.js",
+    "ms": "bin/meowscript.js"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./catalog": "./src/catalog.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test",
+    "build:example": "node bin/meowscript.js build examples/player.ms -o build/player.sb3"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@turbowarp/packager": "3.13.0"
+  }
+}
