@@ -16,7 +16,9 @@ function opcodes(project) {
 }
 
 test("compiles the spec fixture with pen extension and assets", () => {
-  const result = build({ file: path.join(root, "examples/player.ms") });
+  const result = build({
+    file: path.join(root, "test/fixtures/player/player.ms"),
+  });
   assert.deepEqual(
     result.project.targets.map((t) => t.name),
     ["Stage", "Player Character"],
@@ -70,12 +72,17 @@ test("marks returning procedures with a return mutation", () => {
   const call = Object.values(sprite.blocks).find(
     (b) => b.opcode === "procedures_call",
   );
-  assert.equal(call.mutation.return, "1");
+  assert.equal(call.mutation.returns, "true");
   const def = Object.values(sprite.blocks).find(
-    (b) => b.opcode === "procedures_definition",
+    (b) => b.opcode === "procedures_definition_return",
   );
   const proto = sprite.blocks[def.inputs.custom_block[1]];
   assert.equal(proto.mutation.proccode, "level");
+  assert.equal(proto.mutation.returns, "true");
+  const ret = Object.values(sprite.blocks).find(
+    (b) => b.opcode === "procedures_return",
+  );
+  assert.ok(ret.inputs.return, "procedures_return uses the `return` input");
 });
 
 test("normalizes hex colors and emits a stop mutation", () => {
@@ -100,6 +107,37 @@ test("normalizes hex colors and emits a stop mutation", () => {
     (b) => b.opcode === "control_stop",
   );
   assert.equal(stop.mutation.hasnext, true);
+});
+
+test("marks forever loops with PenguinMod's loop nub mutation", () => {
+  const ast = parse(
+    `
+        sprite "Bot" {
+            when greenFlag {
+                control.forever { looks.show(); }
+                looks.hide();
+                control.forever { looks.show(); }
+            }
+        }
+    `,
+    "inline.ms",
+  );
+  const { project } = compile(ast, { project: {} });
+  const sprite = project.targets.find((t) => !t.isStage);
+  const loops = Object.values(sprite.blocks).filter(
+    (b) => b.opcode === "control_forever",
+  );
+  assert.equal(loops.length, 2);
+  // Blocks stacked below a forever loop only load in the editor when the loop's
+  // mutation says it has a next-statement nub.
+  const stacked = loops.find((b) => b.next);
+  assert.deepEqual(stacked.mutation, {
+    tagName: "mutation",
+    hasbreak: true,
+    children: [],
+  });
+  const terminal = loops.find((b) => !b.next);
+  assert.equal(terminal.mutation.hasbreak, false);
 });
 
 test("orders dropdowns before value inputs for mixed blocks", () => {
@@ -178,7 +216,9 @@ test("rejects unknown blocks", () => {
 });
 
 test("emits the pen extension only when pen blocks are used", () => {
-  const withPen = build({ file: path.join(root, "examples/player.ms") });
+  const withPen = build({
+    file: path.join(root, "test/fixtures/player/player.ms"),
+  });
   assert.deepEqual(withPen.project.extensions, ["pen"]);
 
   const withoutPen = compile(
@@ -186,4 +226,83 @@ test("emits the pen extension only when pen blocks are used", () => {
     { project: {} },
   );
   assert.deepEqual(withoutPen.project.extensions, []);
+});
+
+test("compiles catalog boolean inputs, including infix and/or", () => {
+  const ast = parse(
+    `
+        sprite "S" {
+            when greenFlag {
+                if (true and false) { looks.show(); }
+                if (true or false) { looks.hide(); }
+                if (operators.and(true, false)) { looks.show(); }
+                if (operators.or(false, true)) { looks.hide(); }
+                if (operators.not(false)) { looks.show(); }
+                control.if(true) { looks.show(); }
+                control.ifElse(false) { looks.show(); } else { looks.hide(); }
+                control.waitUntil(false);
+                control.repeatUntil(false) { looks.show(); }
+            }
+        }
+    `,
+    "inline.ms",
+  );
+  const { project } = compile(ast, { project: {} });
+  const codes = opcodes(project);
+  for (const opcode of [
+    "operator_and",
+    "operator_or",
+    "operator_not",
+    "control_if",
+    "control_if_else",
+    "control_wait_until",
+    "control_repeat_until",
+  ]) {
+    assert.ok(codes.includes(opcode), `expected ${opcode}`);
+  }
+});
+
+test("rejects statements after a block that ends the script", () => {
+  const cases = [
+    [
+      'sprite "S" { returning function f() { return 1; looks.say("x"); } when greenFlag { looks.show(); } }',
+      /follow `return`/,
+    ],
+    [
+      'sprite "S" { when greenFlag { control.stop("all"); looks.show(); } }',
+      /follow `control\.stop\("all"\)`/,
+    ],
+    [
+      'sprite "S" { when greenFlag { control.stop("this script"); looks.show(); } }',
+      /follow `control\.stop\("this script"\)`/,
+    ],
+    [
+      'sprite "S" { when cloneStart { control.deleteThisClone(); looks.show(); } }',
+      /follow `control\.deleteThisClone\(\)`/,
+    ],
+  ];
+  for (const [source, pattern] of cases) {
+    assert.throws(
+      () => compile(parse(source, "inline.ms"), { project: {} }),
+      pattern,
+      source,
+    );
+  }
+});
+
+test("allows blocks after a non-terminal stop and a terminal block last", () => {
+  const ast = parse(
+    `
+        sprite "S" {
+            returning function f() { return 1; }
+            when greenFlag {
+                control.stop("other scripts in sprite");
+                looks.show();
+            }
+            when cloneStart { control.deleteThisClone(); }
+        }
+    `,
+    "inline.ms",
+  );
+  assert.doesNotThrow(() => compile(ast, { project: {} }));
 });

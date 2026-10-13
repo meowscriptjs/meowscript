@@ -4,7 +4,7 @@
  * @example
  * import {build} from 'meowscript';
  * const {sb3} = build({file: 'src/player.ms'});
- * fs.writeFileSync('player.sb3', sb3);
+ * fs.writeFileSync('player.pmp', sb3);
  */
 export { tokenize } from "./lexer.js";
 export { parse } from "./parser.js";

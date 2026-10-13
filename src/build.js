@@ -1,5 +1,5 @@
 /**
- * High level build pipeline: `.ms` source(s) + `meowscript.yml` -> `.sb3` bytes.
+ * High level build pipeline: `.ms` source(s) + `meowscript.yml` -> `.pmp` bytes.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -144,7 +144,10 @@ export function build(options = {}) {
 }
 
 /**
- * Serialize project JSON + assets into a `.sb3` ZIP buffer.
+ * Serialize project JSON + assets into a `.pmp` ZIP buffer.
+ *
+ * PenguinMod's `.pmp` files are byte-for-byte the same Scratch 3 archive as
+ * `.sb3`, so this is also what {@link writeSb3} produces.
  * @param {object} project
  * @param {Map<string, Buffer>} assets
  * @returns {Buffer}

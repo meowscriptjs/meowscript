@@ -11,7 +11,9 @@ import { parse } from "../src/parser.js";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 test("decompiles a project back into parseable MeowScript", () => {
-  const { sb3 } = build({ file: path.join(root, "examples/player.ms") });
+  const { sb3 } = build({
+    file: path.join(root, "test/fixtures/player/player.ms"),
+  });
   const source = decompile(sb3);
   assert.match(source, /sprite "Player Character" \{/);
   assert.match(source, /when greenFlag \{/);
@@ -21,7 +23,9 @@ test("decompiles a project back into parseable MeowScript", () => {
 });
 
 test("round-trips through compile -> decompile -> compile", () => {
-  const first = build({ file: path.join(root, "examples/player.ms") });
+  const first = build({
+    file: path.join(root, "test/fixtures/player/player.ms"),
+  });
   const source = decompile(first.sb3);
   const loadAsset = () =>
     Buffer.from(
@@ -40,20 +44,22 @@ test("round-trips through compile -> decompile -> compile", () => {
 
 test("reads project JSON directly as well as zipped sb3", () => {
   const { project, sb3 } = build({
-    file: path.join(root, "examples/player.ms"),
+    file: path.join(root, "test/fixtures/player/player.ms"),
   });
   assert.equal(decompile(project), decompile(sb3));
 });
 
 test("accepts an asset prefix when emitting costume references", () => {
-  const { project } = build({ file: path.join(root, "examples/player.ms") });
+  const { project } = build({
+    file: path.join(root, "test/fixtures/player/player.ms"),
+  });
   const source = decompileProject(project, { assetPrefix: "assets/" });
   assert.match(source, /idle: "assets\/[0-9a-f]+\.svg"/);
 });
 
 test("the sb3 zip contains project.json plus the referenced assets", () => {
   const { sb3, assets } = build({
-    file: path.join(root, "examples/player.ms"),
+    file: path.join(root, "test/fixtures/player/player.ms"),
   });
   const files = unzipSync(sb3);
   assert.ok(files.has("project.json"));

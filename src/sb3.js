@@ -1,5 +1,7 @@
 /**
- * Minimal, dependency-free .sb3 (ZIP) reader/writer plus asset helpers.
+ * Minimal, dependency-free ZIP reader/writer for Scratch 3 project archives
+ * (both `.sb3` and PenguinMod's `.pmp`, which share the same format) plus
+ * asset helpers.
  *
  * The Scratch 3 project format is a ZIP archive containing `project.json`
  * alongside content-addressed asset files named `<md5>.<ext>`.

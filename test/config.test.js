@@ -6,12 +6,12 @@ import path from "node:path";
 import {
   parseConfig,
   normalizeProject,
-  twConfigPayload,
-  twConfigComment,
+  configPayload,
+  configComment,
   findConfigPath,
   loadConfigFrom,
   DEFAULT_PROJECT,
-  TW_CONFIG_MAGIC,
+  CONFIG_MAGIC,
 } from "../src/config.js";
 
 test("parses the spec meowscript.yml fixture", () => {
@@ -25,15 +25,25 @@ project:
   interpolation: true
   extensions:
     - "./assets/extensions/signals.js"
-    - "https://extensions.turbowarp.org/iloveiced/text.js"
+    - "https://extensions.penguinmod.com/some/text.js"
+  unsandboxed:
+    - signals
 `);
   assert.equal(project.name, "MeowScript Adventure");
   assert.equal(project.framerate, 60);
   assert.equal(project.interpolation, true);
   assert.deepEqual(project.extensions, [
     "./assets/extensions/signals.js",
-    "https://extensions.turbowarp.org/iloveiced/text.js",
+    "https://extensions.penguinmod.com/some/text.js",
   ]);
+  assert.deepEqual(project.unsandboxed, ["signals"]);
+});
+
+test("normalizes a single unsandboxed extension to a list", () => {
+  assert.deepEqual(normalizeProject({ unsandboxed: "coolExt" }).unsandboxed, [
+    "coolExt",
+  ]);
+  assert.deepEqual(normalizeProject({}).unsandboxed, []);
 });
 
 test("normalizes aliases and defaults", () => {
@@ -43,10 +53,10 @@ test("normalizes aliases and defaults", () => {
   assert.equal(project.framerate, DEFAULT_PROJECT.framerate);
 });
 
-test("twConfigPayload only stores non-default values", () => {
-  assert.deepEqual(twConfigPayload({ ...DEFAULT_PROJECT }), {});
+test("configPayload only stores non-default values", () => {
+  assert.deepEqual(configPayload({ ...DEFAULT_PROJECT }), {});
   assert.deepEqual(
-    twConfigPayload({ ...DEFAULT_PROJECT, framerate: 60, turbo: true }),
+    configPayload({ ...DEFAULT_PROJECT, framerate: 60, turbo: true }),
     {
       framerate: 60,
       turbo: true,
@@ -54,16 +64,16 @@ test("twConfigPayload only stores non-default values", () => {
   );
 });
 
-test("twConfigComment returns null at defaults and ends with the magic string", () => {
-  assert.equal(twConfigComment({ ...DEFAULT_PROJECT }), null);
-  const comment = twConfigComment({
+test("configComment returns null at defaults and ends with the magic string", () => {
+  assert.equal(configComment({ ...DEFAULT_PROJECT }), null);
+  const comment = configComment({
     ...DEFAULT_PROJECT,
     width: 640,
     interpolation: true,
   });
-  assert.ok(comment.endsWith(TW_CONFIG_MAGIC));
+  assert.ok(comment.endsWith(CONFIG_MAGIC));
   const json = JSON.parse(
-    comment.slice(comment.lastIndexOf("\n") + 1, -TW_CONFIG_MAGIC.length),
+    comment.slice(comment.lastIndexOf("\n") + 1, -CONFIG_MAGIC.length),
   );
   assert.deepEqual(json, { interpolation: true, width: 640 });
 });

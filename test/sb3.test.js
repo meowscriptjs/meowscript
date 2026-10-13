@@ -82,7 +82,7 @@ test("unzipSync rejects non-zip input", () => {
 
 test("zipSync output is a real file on disk", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "meow-zip-"));
-  const file = path.join(dir, "out.sb3");
+  const file = path.join(dir, "out.pmp");
   fs.writeFileSync(
     file,
     zipSync([{ name: "project.json", data: Buffer.from("{}") }]),

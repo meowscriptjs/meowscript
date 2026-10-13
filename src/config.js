@@ -1,10 +1,11 @@
 /**
- * `meowscript.yml` project configuration and TurboWarp `_twconfig_` emission.
+ * `meowscript.yml` project configuration and PenguinMod config emission.
  *
- * TurboWarp stores per-project runtime settings (framerate, stage size, turbo,
+ * PenguinMod stores per-project runtime settings (framerate, stage size, turbo,
  * interpolation, ...) inside a stage comment whose final line ends with the
- * magic string ` // _twconfig_` followed by extended JSON. We reproduce that
- * format exactly so the settings round-trip through TurboWarp's own loader.
+ * magic string ` // _twconfig_` followed by JSON. We reproduce that format
+ * exactly so the settings round-trip through PenguinMod's own loader. The
+ * `_twconfig_` spelling is PenguinMod's on-disk format and must not change.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -20,13 +21,15 @@ export const DEFAULT_PROJECT = {
   hq: false,
   runtime: {},
   extensions: [],
+  unsandboxed: [],
 };
 
-export const TW_CONFIG_MAGIC = " // _twconfig_";
+/** PenguinMod's stage-comment magic string (unchanged on disk). */
+export const CONFIG_MAGIC = " // _twconfig_";
 
-const TW_COMMENT_PREAMBLE =
-  "Configuration for https://turbowarp.org/\n" +
-  "You can move, resize, minimize this comment, but don't edit it by hand. " +
+const COMMENT_PREAMBLE =
+  "Configuration for https://penguinmod.com/\n" +
+  "You can move, resize, and minimize this comment, but don't edit it by hand. " +
   "This comment can be deleted to remove the stored settings.";
 
 /**
@@ -52,6 +55,10 @@ export function normalizeProject(raw = {}) {
     project.runtime = raw.runtime;
   if (Array.isArray(raw.extensions))
     project.extensions = raw.extensions.map(String);
+  if (Array.isArray(raw.unsandboxed))
+    project.unsandboxed = raw.unsandboxed.map(String);
+  else if (raw.unsandboxed != null)
+    project.unsandboxed = [String(raw.unsandboxed)];
 
   return project;
 }
@@ -104,12 +111,12 @@ export function loadConfigFrom(dir) {
 }
 
 /**
- * Build the differing-from-default `_twconfig_` payload payload. Matches the
- * shape produced by `runtime.storeProjectOptions()`.
+ * Build the differing-from-default config payload. Matches the shape produced
+ * by PenguinMod's `runtime.storeProjectOptions()`.
  * @param {typeof DEFAULT_PROJECT} project
  * @returns {object}
  */
-export function twConfigPayload(project) {
+export function configPayload(project) {
   const out = {};
   if (project.framerate && project.framerate !== DEFAULT_PROJECT.framerate)
     out.framerate = project.framerate;
@@ -132,13 +139,13 @@ export function twConfigPayload(project) {
 }
 
 /**
- * Full text for the stage `_twconfig_` comment, or null when everything is at
- * its default.
+ * Full text for the stage config comment, or null when everything is at its
+ * default.
  * @param {typeof DEFAULT_PROJECT} project
  * @returns {string|null}
  */
-export function twConfigComment(project) {
-  const payload = twConfigPayload(project);
+export function configComment(project) {
+  const payload = configPayload(project);
   if (Object.keys(payload).length === 0) return null;
-  return `${TW_COMMENT_PREAMBLE}\n${JSON.stringify(payload)}${TW_CONFIG_MAGIC}`;
+  return `${COMMENT_PREAMBLE}\n${JSON.stringify(payload)}${CONFIG_MAGIC}`;
 }

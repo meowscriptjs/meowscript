@@ -3,8 +3,8 @@ sprite "Player Character" {
     layer: 2;
 
     costumes: {
-        idle: "../assets/costumes/player_idle.svg",
-        running: "../assets/costumes/player_run.svg"
+        idle: "../../../assets/costumes/player_idle.svg",
+        running: "../../../assets/costumes/player_run.svg"
     };
 
     let health = 100;

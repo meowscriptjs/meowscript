@@ -2,7 +2,7 @@
  * MeowScript block catalog.
  *
  * This module is the single source of truth for how a MeowScript
- * `category.function(...)` call maps onto a Scratch/TurboWarp opcode: its shape
+ * `category.function(...)` call maps onto a Scratch/PenguinMod opcode: its shape
  * (command/reporter/boolean/hat), its inputs, its dropdown fields and any
  * mutation it requires. The compiler, the decompiler and the editor tooling all
  * read from here instead of hard-coding opcode tables.
@@ -19,6 +19,14 @@
 const GOTO_MENU = {
   type: "menu",
   menu: "motion_goto_menu",
+  field: "TO",
+  default: "_mouse_",
+};
+// `motion_glideto` has its own shadow menu block (`motion_glideto_menu`), even
+// though it uses the same `TO` field name as `motion_goto_menu`.
+const GLIDE_MENU = {
+  type: "menu",
+  menu: "motion_glideto_menu",
   field: "TO",
   default: "_mouse_",
 };
@@ -117,7 +125,7 @@ export const CATALOG = {
   "motion.glideTo": {
     opcode: "motion_glideto",
     kind: "command",
-    inputs: { SECS: { type: "number" }, TO: GOTO_MENU },
+    inputs: { SECS: { type: "number" }, TO: GLIDE_MENU },
   },
   "motion.pointInDirection": {
     opcode: "motion_pointindirection",
@@ -448,6 +456,13 @@ export const CATALOG = {
     opcode: "control_forever",
     kind: "command",
     inputs: { SUBSTACK: { type: "substack" } },
+    // PenguinMod builds this loop without a next-statement connection and only
+    // creates one from the block's mutation (`hasbreak` — the nub the editor
+    // adds by itself once a block sits below the loop). Blocks stacked under a
+    // `control.forever` therefore need that mutation: without it the editor's
+    // XML loader dereferences the missing connection while reading the
+    // following `<next>` element and the whole workspace update fails.
+    dynamicNext: true,
   },
   "control.if": {
     opcode: "control_if",
@@ -537,12 +552,16 @@ export const CATALOG = {
     kind: "hat",
     args: [{ field: "BACKDROP", default: "backdrop1" }],
   },
+  // The dropdown field is `WHENGREATERTHANMENU` in TurboWarp/PenguinMod (the
+  // vanilla Scratch 3 name is `WHENGREATER`); the option values are the
+  // uppercase menu ids `LOUDNESS`/`TIMER`. See PenguinMod-Blocks event.js and
+  // scratch3_event.js.
   "events.loudnessGreaterThan": {
     opcode: "event_whengreaterthan",
     kind: "hat",
     args: [
       { input: "VALUE", type: "number" },
-      { field: "WHENGREATER", value: "loudness" },
+      { field: "WHENGREATERTHANMENU", value: "LOUDNESS" },
     ],
   },
   "events.timerGreaterThan": {
@@ -550,7 +569,7 @@ export const CATALOG = {
     kind: "hat",
     args: [
       { input: "VALUE", type: "number" },
-      { field: "WHENGREATER", value: "timer" },
+      { field: "WHENGREATERTHANMENU", value: "TIMER" },
     ],
   },
 
@@ -577,36 +596,54 @@ export const CATALOG = {
     inputs: { SIZE: { type: "number" } },
     extension: "pen",
   },
+  // COLOR_PARAM is an input whose shadow is `pen_menu_colorParam`, not a
+  // direct field: the pen extension declares `colorParam` with
+  // `acceptReporters: true`, so the workspace serializes it as a value input
+  // wrapping a shadow menu block (field name `colorParam`).
   "pen.changeColorParam": {
     opcode: "pen_changePenColorParamBy",
     kind: "command",
-    fields: { COLOR_PARAM: "color" },
-    inputs: { VALUE: { type: "number" } },
+    inputs: {
+      COLOR_PARAM: {
+        type: "menu",
+        menu: "pen_menu_colorParam",
+        field: "colorParam",
+        default: "color",
+      },
+      VALUE: { type: "number" },
+    },
     extension: "pen",
   },
   "pen.setColorParam": {
     opcode: "pen_setPenColorParamTo",
     kind: "command",
-    fields: { COLOR_PARAM: "color" },
-    inputs: { VALUE: { type: "number" } },
+    inputs: {
+      COLOR_PARAM: {
+        type: "menu",
+        menu: "pen_menu_colorParam",
+        field: "colorParam",
+        default: "color",
+      },
+      VALUE: { type: "number" },
+    },
     extension: "pen",
   },
 
-  // ------------------------------------------------------------ turbowarp
-  "tw.lastKeyPressed": {
+  // ------------------------------------------------------------ penguinmod
+  "pm.lastKeyPressed": {
     opcode: "argument_reporter_string_number",
     kind: "reporter",
     fields: { VALUE: ["last key pressed", null] },
   },
-  "tw.isCompiled": {
+  "pm.isCompiled": {
     opcode: "argument_reporter_boolean",
     kind: "boolean",
     fields: { VALUE: ["is compiled?", null] },
   },
-  "tw.isTurboWarp": {
+  "pm.isPenguinMod": {
     opcode: "argument_reporter_boolean",
     kind: "boolean",
-    fields: { VALUE: ["is turbowarp?", null] },
+    fields: { VALUE: ["is penguinmod?", null] },
   },
 };
 

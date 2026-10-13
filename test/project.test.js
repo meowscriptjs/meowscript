@@ -4,7 +4,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawnSync } from "node:child_process";
+import http from "node:http";
+import { spawnSync, execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { discoverSources, mergePrograms } from "../src/project.js";
 import { build } from "../src/build.js";
 import { parse } from "../src/parser.js";
@@ -12,6 +14,28 @@ import { ParseError, CompileError } from "../src/errors.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const bin = path.join(root, "bin", "meowscript.js");
+const execFileAsync = promisify(execFile);
+
+// A minimal extension that is loaded from a URL in the catalog test below.
+const SIGNALS_EXT = `
+(function (Scratch) {
+  'use strict';
+  class Signals {
+    getInfo () {
+      return {
+        id: 'signals',
+        name: 'Signals',
+        blocks: [
+          {opcode: 'send', blockType: Scratch.BlockType.COMMAND, text: 'send [MSG]',
+           arguments: {MSG: {type: Scratch.ArgumentType.STRING, defaultValue: 'hi'}}}
+        ]
+      };
+    }
+    send () {}
+  }
+  Scratch.extensions.register(new Signals());
+})(Scratch);
+`;
 
 function tmp(prefix = "meow-proj-") {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -181,18 +205,96 @@ test("cli one-letter aliases resolve to their long commands", () => {
   assert.equal(check.status, 0, check.stderr);
   assert.match(check.stdout, /Checked 1 file\(s\): OK/);
 
-  const built = spawnSync(
-    process.execPath,
-    [bin, "b", dir, "-o", path.join(dir, "out.sb3")],
-    { encoding: "utf8" },
-  );
+  const built = spawnSync(process.execPath, [bin, "b", dir], {
+    encoding: "utf8",
+  });
   assert.equal(built.status, 0, built.stderr);
-  assert.ok(fs.existsSync(path.join(dir, "out.sb3")));
+  // The default output for a directory is build/<slug>.pmp.
+  const defaultOut = path.join(dir, "build", "meowscript-project.pmp");
+  assert.ok(fs.existsSync(defaultOut), "expected build/meowscript-project.pmp");
+  assert.ok(
+    !fs.existsSync(path.join(dir, "build", "meowscript-project.sb3")),
+    "build output should not use the .sb3 extension",
+  );
   assert.match(built.stdout, /Built/);
 
   const catalog = spawnSync(process.execPath, [bin, "l"], { encoding: "utf8" });
   assert.equal(catalog.status, 0, catalog.stderr);
   assert.match(catalog.stdout, /MeowScript catalog/);
+});
+
+test("building a single file defaults to a .pmp next to the source", () => {
+  const dir = tmp();
+  const source = path.join(dir, "game.ms");
+  write(source, 'sprite "S" { when greenFlag { looks.show(); } }');
+
+  const built = spawnSync(process.execPath, [bin, "b", source], {
+    encoding: "utf8",
+  });
+  assert.equal(built.status, 0, built.stderr);
+  assert.ok(fs.existsSync(path.join(dir, "game.pmp")));
+  assert.ok(!fs.existsSync(path.join(dir, "game.sb3")));
+});
+
+test("catalog lists blocks from extensions loaded over a URL", async () => {
+  const dir = tmp();
+  const server = http.createServer((req, res) => {
+    res.setHeader("content-type", "text/javascript");
+    res.end(SIGNALS_EXT);
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address();
+  try {
+    write(
+      path.join(dir, "meowscript.yml"),
+      `project:\n  name: "Cat"\n  extensions:\n    - "http://127.0.0.1:${port}/signals.js"\n`,
+    );
+    write(
+      path.join(dir, "main.ms"),
+      'sprite "S" { when greenFlag { signals.send("hi"); } }',
+    );
+
+    const listed = await execFileAsync(process.execPath, [bin, "l"], {
+      cwd: dir,
+    });
+    assert.match(
+      listed.stdout,
+      /signals\.send\s+-> signals_send \[command\] \(ext signals\)/,
+    );
+    assert.match(listed.stdout, /from extensions\)/);
+
+    const json = await execFileAsync(process.execPath, [bin, "l", "--json"], {
+      cwd: dir,
+    });
+    const catalog = JSON.parse(json.stdout);
+    assert.equal(catalog["signals.send"].opcode, "signals_send");
+    assert.equal(catalog["motion.moveSteps"].opcode, "motion_movesteps");
+
+    // The same extension blocks still compile against the URL source.
+    const built = await execFileAsync(
+      process.execPath,
+      [bin, "b", "-o", path.join(dir, "out.pmp")],
+      { cwd: dir },
+    );
+    assert.match(built.stdout, /extensions: signals/);
+  } finally {
+    server.close();
+  }
+});
+
+test("catalog lists local extensions without the build-only URL warning", async () => {
+  const dir = tmp();
+  write(path.join(dir, "signals.js"), SIGNALS_EXT);
+  write(
+    path.join(dir, "meowscript.yml"),
+    'project:\n  name: "Cat"\n  extensions:\n    - "./signals.js"\n',
+  );
+
+  const listed = await execFileAsync(process.execPath, [bin, "l", dir], {
+    cwd: dir,
+  });
+  assert.match(listed.stdout, /signals\.send\s+-> signals_send/);
+  assert.doesNotMatch(listed.stderr, /extensionURLs/);
 });
 
 test("package.json exposes both the meowscript and ms executables", () => {

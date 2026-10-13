@@ -237,7 +237,7 @@ class Parser {
     const params = [];
     while (!this.atPunct(")")) {
       const ptok = this.peek();
-      let paramName = this.expectIdent();
+      const paramName = this.expectIdent();
       let boolean = false;
       // Optional type annotation: `flag: boolean`
       if (this.eat(":")) {

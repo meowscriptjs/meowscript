@@ -2,10 +2,10 @@
 /**
  * MeowScript command line interface.
  *
- *   meowscript build [input.ms | dir] [-o out.sb3] [--no-config]   (alias: b)
- *   meowscript decompile <input.sb3> [-o out.ms] [--assets <dir>]  (alias: d)
+ *   meowscript build [input.ms | dir] [-o out.pmp] [--no-config]   (alias: b)
+ *   meowscript decompile <input.pmp> [-o out.ms] [--assets <dir>]  (alias: d)
  *   meowscript check [input.ms | dir]                              (alias: c)
- *   meowscript catalog [--json]                                    (alias: l)
+ *   meowscript catalog [dir] [--json]                              (alias: l)
  *   meowscript init [dir]                                          (alias: i)
  *
  * `ms` is an alias for `meowscript`, so `ms c` runs `meowscript check`.
@@ -13,7 +13,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import { build, writeSb3 } from "../src/build.js";
+import { build } from "../src/build.js";
 import { parse } from "../src/parser.js";
 import { discoverSources } from "../src/project.js";
 import { decompile } from "../src/decompiler.js";
@@ -45,27 +45,28 @@ function parseArgs(argv) {
 }
 
 function usage() {
-  return `meowscript — compile MeowScript (.ms) to TurboWarp .sb3
+  return `meowscript — compile MeowScript (.ms) to a PenguinMod .pmp
 
 Usage:
-  meowscript build [<input.ms>|<dir>] [-o <output.sb3>] [--no-config]
-  meowscript decompile <input.sb3> [-o <output.ms>] [--assets <dir>]
+  meowscript build [<input.ms>|<dir>] [-o <output.pmp>] [--no-config]
+  meowscript decompile <input.pmp> [-o <output.ms>] [--assets <dir>]
   meowscript check [<input.ms>|<dir>]
-  meowscript catalog [--json]
+  meowscript catalog [<dir>] [--json]
   meowscript init [dir]
 
 Commands:
   build     (b)  Compile a source file, or every .ms file in a directory
-                 (defaults to the working directory) into one .sb3.
-  decompile (d)  Convert an .sb3 back into MeowScript source.
+                 (defaults to the working directory) into one .pmp.
+  decompile (d)  Convert a .pmp back into MeowScript source.
   check     (c)  Parse a file (or every .ms file in a directory) for errors.
-  catalog   (l)  List the available MeowScript blocks.
+  catalog   (l)  List MeowScript blocks, including those from meowscript.yml
+                 extensions (paths or URLs).
   init      (i)  Scaffold a new project.
 
 Options:
   -o, --output    Output file path
   --no-config     Ignore meowscript.yml
-  --assets <dir>  Extract sb3 assets into <dir> when decompiling
+  --assets <dir>  Extract project assets into <dir> when decompiling
   --json          Machine readable output (catalog)
 
 Note: \`ms\` is a shorthand for \`meowscript\` (e.g. \`ms b\`, \`ms c\`).
@@ -86,17 +87,23 @@ function fail(message) {
   process.exit(1);
 }
 
-async function loadProjectExtensions(dir, config) {
+async function loadProjectExtensions(dir, config, { localFileWarning } = {}) {
   const catalog = {};
   const extensionUrls = {};
+  const unsandboxed = [];
   if (!config.extensions || config.extensions.length === 0)
-    return { catalog, extensionUrls };
-  const loaded = await loadExtensions(config.extensions, { baseDir: dir });
+    return { catalog, extensionUrls, unsandboxed };
+  const loaded = await loadExtensions(config.extensions, {
+    baseDir: dir,
+    expectUnsandboxed: config.unsandboxed,
+    localFileWarning,
+  });
   Object.assign(catalog, loaded.catalog);
   Object.assign(extensionUrls, loaded.extensionUrls);
+  unsandboxed.push(...loaded.unsandboxed);
   for (const warning of loaded.warnings)
     process.stderr.write(`warning: ${warning}\n`);
-  return { catalog, extensionUrls };
+  return { catalog, extensionUrls, unsandboxed };
 }
 
 /** Turn a project name into a filesystem-friendly slug. */
@@ -132,7 +139,7 @@ async function cmdBuild(args) {
     : loadConfigFrom(searchDir);
   const config = loaded.project;
   const extBase = loaded.path ? path.dirname(loaded.path) : searchDir;
-  const { catalog, extensionUrls } = await loadProjectExtensions(
+  const { catalog, extensionUrls, unsandboxed } = await loadProjectExtensions(
     extBase,
     config || {},
   );
@@ -149,11 +156,11 @@ async function cmdBuild(args) {
   const output =
     explicit ||
     (target.file
-      ? target.file.replace(/\.ms$/i, ".sb3")
+      ? target.file.replace(/\.ms$/i, ".pmp")
       : path.join(
           target.dir,
           "build",
-          `${slugify(result.config.name || path.basename(target.dir))}.sb3`,
+          `${slugify(result.config.name || path.basename(target.dir))}.pmp`,
         ));
 
   fs.mkdirSync(path.dirname(path.resolve(output)), { recursive: true });
@@ -169,7 +176,11 @@ async function cmdBuild(args) {
       `  targets:    ${result.project.targets.length}\n` +
       `  blocks:     ${blockCount}\n` +
       `  assets:     ${result.assets.size}\n` +
-      `  extensions: ${result.project.extensions.join(", ") || "(none)"}\n`,
+      `  extensions: ${result.project.extensions.join(", ") || "(none)"}\n` +
+      (unsandboxed.length
+        ? `  unsandboxed: ${unsandboxed.join(", ")} ` +
+          "(must be allowed to run unsandboxed in the editor)\n"
+        : ""),
   );
 }
 
@@ -185,17 +196,38 @@ function cmdCheck(args) {
   process.stdout.write(`Checked ${files.length} file(s): OK\n`);
 }
 
-function cmdCatalog(args) {
-  const names = blockNames();
+async function cmdCatalog(args) {
+  // Merge the built-in catalog with any extensions declared in meowscript.yml,
+  // so blocks from path- or URL-loaded extensions show up here too.
+  const loaded = args.flags["no-config"]
+    ? { project: null, path: null }
+    : loadConfigFrom(args._[0] || process.cwd());
+  const config = loaded.project;
+  const extBase = loaded.path ? path.dirname(loaded.path) : process.cwd();
+  const { catalog } = await loadProjectExtensions(extBase, config || {}, {
+    localFileWarning: false,
+  });
+
+  const merged = { ...CATALOG, ...catalog };
+  const names = Object.keys(merged).sort();
+
   if (args.flags.json) {
-    process.stdout.write(`${JSON.stringify(CATALOG, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify(merged, null, 2)}\n`);
     return;
   }
-  process.stdout.write(`MeowScript catalog (${names.length} blocks):\n`);
+  const builtIn = blockNames().length;
+  process.stdout.write(
+    `MeowScript catalog (${names.length} blocks` +
+      (names.length > builtIn
+        ? `, ${names.length - builtIn} from extensions`
+        : "") +
+      `):\n`,
+  );
   for (const name of names) {
-    const entry = CATALOG[name];
+    const entry = merged[name];
+    const tag = entry.extension ? ` (ext ${entry.extension})` : "";
     process.stdout.write(
-      `  ${name.padEnd(32)} -> ${entry.opcode} [${entry.kind}]\n`,
+      `  ${name.padEnd(32)} -> ${entry.opcode} [${entry.kind}]${tag}\n`,
     );
   }
 }
@@ -203,7 +235,7 @@ function cmdCatalog(args) {
 function cmdDecompile(args) {
   const input = args._[0];
   if (!input)
-    fail("error: decompile requires an input .sb3 file\n\n" + usage());
+    fail("error: decompile requires an input .pmp file\n\n" + usage());
   const data = fs.readFileSync(input);
   const files = unzipSync(data);
 

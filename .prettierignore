@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Vendored PenguinMod sources (VM / GUI / gallery / packager) kept for reference
+reference/
+
+# OpenCode tool metadata
+.freebuff/
+
+# Compiled MeowScript projects (*.pmp) and their extracted assets
+**/build/
+
+# Generated bundles and coverage output
+coverage/
+dist/
+
+# Binary Scratch / PenguinMod project archives
+*.pmp
+*.sb3
+
+# npm pack output
+*.tgz
+
+# Auto-generated lockfile
+package-lock.json

@@ -1,5 +1,5 @@
 /**
- * MeowScript decompiler: Scratch 3 / TurboWarp project JSON -> `.ms` source.
+ * MeowScript decompiler: Scratch 3 / PenguinMod project JSON -> `.ms` source.
  *
  * This is the inverse of `compiler.js`. It leans on the same catalog (reverse
  * opcode lookup) so the two stay in sync.
@@ -9,6 +9,7 @@ import { unzipSync } from "./sb3.js";
 
 const MENU_OPCODES = new Set([
   "motion_goto_menu",
+  "motion_glideto_menu",
   "motion_pointtowards_menu",
   "sensing_touchingobjectmenu",
   "sensing_distancetomenu",
@@ -18,6 +19,7 @@ const MENU_OPCODES = new Set([
   "sound_sounds_menu",
   "control_create_clone_of_menu",
   "sensing_of_object_menu",
+  "pen_menu_colorParam",
 ]);
 
 const BINARY_OPCODES = {
@@ -70,14 +72,22 @@ class Decompiler {
         if (
           block.opcode === "procedures_call" &&
           block.mutation &&
-          block.mutation.return
+          (block.mutation.returns === "true" || block.mutation.return)
         ) {
           this.returningProccodes.add(block.mutation.proccode);
         }
-        if (block.opcode === "procedures_definition") {
+        if (
+          block.opcode === "procedures_definition" ||
+          block.opcode === "procedures_definition_return"
+        ) {
           const proto = target.blocks[firstOf(block.inputs.custom_block)];
           const proccode = proto && proto.mutation && proto.mutation.proccode;
-          if (proccode && stackHasReturn(target, block.next))
+          if (
+            proccode &&
+            (block.opcode === "procedures_definition_return" ||
+              (proto.mutation && proto.mutation.returns === "true") ||
+              stackHasReturn(target, block.next))
+          )
             this.returningProccodes.add(proccode);
         }
       }
@@ -142,10 +152,28 @@ class Decompiler {
     if (block.opcode === "data_variable") return block.fields.VARIABLE[0];
     if (block.opcode === "data_listcontents") return block.fields.LIST[0];
     if (
+      Object.prototype.hasOwnProperty.call(LIST_OPCODE_METHOD, block.opcode)
+    ) {
+      const { method, inputs } = LIST_OPCODE_METHOD[block.opcode];
+      const listName = block.fields.LIST[0];
+      const args = inputs.map((input) =>
+        this.renderExpression(block.inputs[input]),
+      );
+      return `${listName}.${method}(${args.join(", ")})`;
+    }
+    if (
       block.opcode === "argument_reporter_string_number" ||
       block.opcode === "argument_reporter_boolean"
     ) {
-      return block.fields.VALUE[0];
+      const value = block.fields.VALUE ? block.fields.VALUE[0] : "";
+      // TurboWarp/PenguinMod encode a few "PenguinMod" reporters as modified
+      // argument reporters; see docs.turbowarp.org/blocks and the VM compiler.
+      const magic = {
+        "last key pressed": "pm.lastKeyPressed()",
+        "is compiled?": "pm.isCompiled()",
+        "is penguinmod?": "pm.isPenguinMod()",
+      }[value];
+      return magic || value;
     }
     if (block.opcode === "procedures_call") {
       return this.renderProcedureCall(block);
@@ -235,7 +263,7 @@ class Decompiler {
       case "control_wait_until":
         return `${pad}control.waitUntil(${stripParen(this.renderExpression(block.inputs.CONDITION))});`;
       case "procedures_return":
-        return `${pad}return ${this.renderExpression(block.inputs.VALUE)};`;
+        return `${pad}return ${this.renderExpression(block.inputs.return ?? block.inputs.VALUE)};`;
       case "procedures_call":
         return `${pad}${this.renderProcedureCall(block)};`;
       case "control_stop":
@@ -285,10 +313,11 @@ class Decompiler {
       case "event_whenbackdropswitchesto":
         return `${pad}when backdropSwitchesTo("${escapeString(block.fields.BACKDROP[0])}") {\n${body(block.next)}\n}`;
       case "event_whengreaterthan": {
+        const option = String(
+          (block.fields.WHENGREATERTHANMENU || ["LOUDNESS"])[0],
+        ).toLowerCase();
         const kind =
-          block.fields.WHENGREATER[0] === "timer"
-            ? "timerGreaterThan"
-            : "loudnessGreaterThan";
+          option === "timer" ? "timerGreaterThan" : "loudnessGreaterThan";
         return `${pad}when ${kind}(${this.renderExpression(block.inputs.VALUE)}) {\n${body(block.next)}\n}`;
       }
       default:
@@ -348,11 +377,19 @@ class Decompiler {
     const blockIds = Object.keys(target.blocks || {});
     const hats = blockIds.filter((id) => {
       const b = target.blocks[id];
-      return b.topLevel && b.opcode !== "procedures_definition";
+      return (
+        b.topLevel &&
+        b.opcode !== "procedures_definition" &&
+        b.opcode !== "procedures_definition_return"
+      );
     });
-    const defs = blockIds.filter(
-      (id) => target.blocks[id].opcode === "procedures_definition",
-    );
+    const defs = blockIds.filter((id) => {
+      const opcode = target.blocks[id].opcode;
+      return (
+        opcode === "procedures_definition" ||
+        opcode === "procedures_definition_return"
+      );
+    });
 
     for (const id of defs) {
       sections.push(indentText(this.renderFunction(target.blocks[id]), pad));
@@ -445,7 +482,7 @@ export function decompileProject(project, options) {
 }
 
 /**
- * Decompile a `.sb3` buffer (or project JSON) into MeowScript source.
+ * Decompile a `.pmp`/`.sb3` buffer (or project JSON) into MeowScript source.
  * @param {Buffer|Uint8Array|object} input
  * @param {{assetPrefix?: string}} [options]
  * @returns {string}

@@ -3,7 +3,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { loadExtensions, BlockType, ArgumentType } from "../src/extensions.js";
+import {
+  loadExtensions,
+  BlockType,
+  ArgumentType,
+  BlockShape,
+  NotchShape,
+} from "../src/extensions.js";
 
 function tempExtension(source) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "meow-ext-"));
@@ -125,6 +131,139 @@ test("runs extensions in a sandbox without process or require", async () => {
   assert.deepEqual(ids, ["safe"]);
 });
 
+const UNSANDBOXED = `
+(function (Scratch) {
+  'use strict';
+  if (!Scratch.extensions.unsandboxed) {
+    throw new Error('"Demo" must run unsandboxed');
+  }
+  Scratch.extensions.register({
+    getInfo () {
+      return {
+        id: 'demo',
+        name: 'Demo',
+        blocks: [{opcode: 'go', blockType: Scratch.BlockType.COMMAND, text: 'go'}]
+      };
+    },
+    go () {}
+  });
+})(Scratch);
+`;
+
+test("loads extensions that only work unsandboxed and flags them", async () => {
+  const dir = tempExtension(UNSANDBOXED);
+  const { catalog, ids, unsandboxed, warnings } = await loadExtensions(
+    ["./ext.js"],
+    { baseDir: dir },
+  );
+  assert.deepEqual(ids, ["demo"]);
+  assert.deepEqual(unsandboxed, ["demo"]);
+  assert.equal(catalog["demo.go"].opcode, "demo_go");
+  assert.ok(
+    warnings.some((w) => /requires unsandboxed mode/.test(w)),
+    warnings.join("\n"),
+  );
+});
+
+test("silences the unsandboxed warning for declared extensions", async () => {
+  const dir = tempExtension(UNSANDBOXED);
+  const { unsandboxed, warnings } = await loadExtensions(["./ext.js"], {
+    baseDir: dir,
+    expectUnsandboxed: ["demo"],
+  });
+  assert.deepEqual(unsandboxed, ["demo"]);
+  assert.deepEqual(
+    warnings.filter((w) => /unsandboxed/.test(w)),
+    [],
+  );
+});
+
+test("flags a declared extension that actually loads sandboxed", async () => {
+  const dir = tempExtension(SIGNALS);
+  const { warnings } = await loadExtensions(["./ext.js"], {
+    baseDir: dir,
+    expectUnsandboxed: ["signals"],
+  });
+  assert.ok(
+    warnings.some((w) => /loads in the sandbox/.test(w)),
+    warnings.join("\n"),
+  );
+});
+
+test("flags a declared entry that matches no loaded extension", async () => {
+  const dir = tempExtension(SIGNALS);
+  const { warnings } = await loadExtensions(["./ext.js"], {
+    baseDir: dir,
+    expectUnsandboxed: ["nope"],
+  });
+  assert.ok(
+    warnings.some((w) => /does not match any loaded extension/.test(w)),
+    warnings.join("\n"),
+  );
+});
+
+test("treats an alert-and-return guard as requiring unsandboxed", async () => {
+  const dir = tempExtension(`
+        (function (Scratch) {
+            if (!Scratch.extensions.unsandboxed) {
+                alert('Nope must run unsandboxed!');
+                return;
+            }
+            Scratch.extensions.register({getInfo () { return {id: 'nope', blocks: [
+                {opcode: 'go', blockType: Scratch.BlockType.COMMAND, text: 'go'}
+            ]}; }});
+        })(Scratch);
+    `);
+  const { catalog, ids, unsandboxed } = await loadExtensions(["./ext.js"], {
+    baseDir: dir,
+  });
+  assert.deepEqual(ids, ["nope"]);
+  assert.deepEqual(unsandboxed, ["nope"]);
+  assert.equal(catalog["nope.go"].opcode, "nope_go");
+});
+
+test("tolerates module-scope VM and browser access", async () => {
+  const dir = tempExtension(`
+        (function (Scratch) {
+            const runtime = Scratch.vm.runtime;
+            runtime.on('PROJECT_START', () => {});
+            runtime.registerSerializer('x', v => v, v => v);
+            const canvas = document.createElement('canvas');
+            canvas.width = navigator.language.length;
+            new Audio('data:audio/mp3;base64,');
+            Scratch.extensions.register({getInfo () { return {id: 'vmish', blocks: [
+                {opcode: 'go', blockType: Scratch.BlockType.COMMAND, text: 'go'}
+            ]}; }});
+        })(Scratch);
+    `);
+  const { catalog, warnings, ids } = await loadExtensions(["./ext.js"], {
+    baseDir: dir,
+  });
+  assert.deepEqual(ids, ["vmish"]);
+  assert.equal(catalog["vmish.go"].opcode, "vmish_go");
+  assert.deepEqual(
+    warnings.filter((w) => /failed/.test(w)),
+    [],
+  );
+});
+
+test("exposes PenguinMod detection to extension code", async () => {
+  const dir = tempExtension(`
+        (function (Scratch) {
+            if (Scratch.extensions.isPenguinMod !== true) throw new Error('not penguinmod');
+            Scratch.extensions.register({getInfo () { return {id: 'pm', blocks: []}; }});
+        })(Scratch);
+    `);
+  const { ids, warnings } = await loadExtensions(["./ext.js"], {
+    baseDir: dir,
+  });
+  assert.deepEqual(ids, ["pm"]);
+  assert.deepEqual(
+    warnings.filter((w) => /failed/.test(w)),
+    [],
+  );
+});
+
 test("warns on HTTP errors for remote extensions", async () => {
   const fetchImpl = async () => ({
     ok: false,
@@ -139,7 +278,9 @@ test("warns on HTTP errors for remote extensions", async () => {
   assert.match(warnings[0], /HTTP 404/);
 });
 
-test("exposes the TurboWarp enum shims to extension code", () => {
+test("exposes the PenguinMod enum shims to extension code", () => {
   assert.equal(BlockType.COMMAND, "command");
   assert.equal(ArgumentType.STRING, "string");
+  assert.equal(BlockShape.SQUARE, 3);
+  assert.equal(NotchShape.ARROW, "arrow");
 });

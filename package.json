@@ -1,7 +1,7 @@
 {
   "name": "@meowscriptjs/meowscript",
   "version": "1.0.0",
-  "description": "MeowScript (.ms) — a catalog-driven DSL compiler that emits TurboWarp / Scratch .sb3 projects.",
+  "description": "MeowScript (.ms) — a catalog-driven DSL compiler that emits PenguinMod .pmp projects.",
   "type": "module",
   "license": "MIT",
   "main": "src/index.js",
@@ -19,16 +19,25 @@
     "README.md"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "scripts": {
-    "test": "node --test",
-    "build:example": "node bin/meowscript.js build examples/player.ms -o build/player.sb3"
+    "test": "node --test test/*.test.js",
+    "build:example": "node bin/meowscript.js build examples/player -o build/player.pmp",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {
-    "@turbowarp/packager": "3.13.0"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.12.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10",
+    "scratch-vm": "github:PenguinMod/PenguinMod-Vm#develop"
   }
 }

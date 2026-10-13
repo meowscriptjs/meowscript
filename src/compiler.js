@@ -1,5 +1,5 @@
 /**
- * MeowScript compiler: AST -> Scratch 3 / TurboWarp project JSON.
+ * MeowScript compiler: AST -> Scratch 3 / PenguinMod project JSON.
  *
  * The compiler is deliberately catalog-driven: every `category.block(...)` is
  * resolved through `catalog.js`, so adding a new block is a data change rather
@@ -7,7 +7,7 @@
  */
 import { CATALOG, LIST_OPS, extensionForOpcode } from "./catalog.js";
 import { CompileError } from "./errors.js";
-import { twConfigComment } from "./config.js";
+import { configComment } from "./config.js";
 import { md5hex, imageSize, wavInfo, detectFormat } from "./sb3.js";
 
 const HAT_ALIASES = {
@@ -31,6 +31,16 @@ const NUMBER_TYPES = {
   whole: 6,
   integer: 7,
 };
+
+// Opcodes whose block ends the stack: scratch-blocks gives them "shape_end"
+// (no next-statement connection), so nothing can be serialized below them. The
+// editor dereferences that missing connection while reading a following
+// `<next>` element, which aborts the whole workspace update — so the compiler
+// must refuse to emit statements after one.
+const TERMINAL_OPCODES = new Set([
+  "procedures_return",
+  "control_delete_this_clone",
+]);
 
 let seed = 0;
 function uid(prefix = "b") {
@@ -131,6 +141,14 @@ export class Compiler {
         this.opcodeExtensions.set(entry.opcode, entry.extension);
     }
 
+    // Opcodes whose next-statement connection only exists once a mutation asks
+    // for it (PenguinMod's loop nub), derived from the merged catalog.
+    this.dynamicNextOpcodes = new Set();
+    for (const entry of Object.values(this.catalog)) {
+      if (entry && entry.dynamicNext && entry.opcode)
+        this.dynamicNextOpcodes.add(entry.opcode);
+    }
+
     this.assets = new Map(); // md5ext -> Buffer
     this.globals = new Map(); // name -> {kind:'var'|'list', id, name, cloud?, value?}
     this.broadcasts = new Map(); // name -> id
@@ -214,7 +232,38 @@ export class Compiler {
       this.emitTargetScripts(ctx);
     }
 
+    // Pass 3: editor-only connection state. "Next" links are wired up as the
+    // stacks are emitted, so blocks whose next-statement connection is dynamic
+    // can only be given their mutation once every stack is complete.
+    for (const ctx of contexts) this.applyDynamicNextMutations(ctx);
+
     return { project: this.assembleProject(contexts), assets: this.assets };
+  }
+
+  /**
+   * Give every block with a dynamic next-statement connection the mutation the
+   * editor itself stores for it.
+   *
+   * PenguinMod's `control_forever` starts out without a next-statement
+   * connection: `Blockly.Blocks.control_forever.init` calls
+   * `setNextStatement(false)`, and only `domToMutation` (fed by
+   * `<mutation hasbreak="true">`, the nub the editor adds once a block sits
+   * below the loop) calls `setNextStatement(true, 'normal')`. A loop with
+   * blocks stacked under it but no such mutation makes the editor read
+   * `nextConnection.isConnected()` on null while handling the following
+   * `<next>` element, which aborts the entire workspace update.
+   * @param {Context} ctx
+   */
+  applyDynamicNextMutations(ctx) {
+    if (this.dynamicNextOpcodes.size === 0) return;
+    for (const block of Object.values(ctx.target.blocks)) {
+      if (!this.dynamicNextOpcodes.has(block.opcode)) continue;
+      block.mutation = {
+        tagName: "mutation",
+        hasbreak: Boolean(block.next),
+        children: [],
+      };
+    }
   }
 
   makeTarget(name, isStage) {
@@ -528,7 +577,9 @@ export class Compiler {
     const fn = ctx.funcs.get(decl.name);
     const pos = ctx.nextScriptPosition();
     const defId = this.addBlock(ctx, {
-      opcode: "procedures_definition",
+      opcode: fn.returns
+        ? "procedures_definition_return"
+        : "procedures_definition",
       topLevel: true,
       x: pos.x,
       y: pos.y,
@@ -562,8 +613,9 @@ export class Compiler {
         proccode: fn.proccode,
         argumentids: JSON.stringify(fn.argIds),
         argumentnames: JSON.stringify(fn.params.map((p) => p.name)),
-        argumentdefaults: JSON.stringify(fn.params.map((p) => "")),
+        argumentdefaults: JSON.stringify(fn.params.map(() => "")),
         warp: String(fn.warp),
+        ...(fn.returns ? { returns: "true" } : {}),
       },
     };
     ctx.target.blocks[defId].inputs.custom_block = [1, protoId];
@@ -616,6 +668,13 @@ export class Compiler {
     let first = null;
     let prev = null;
     for (const statement of statements) {
+      if (prev != null && this.blockEndsScript(ctx, prev)) {
+        this.fail(
+          `No statements can follow ${this.terminalDescription(ctx, prev)}; ` +
+            "nothing can connect below a block that ends the script",
+          statement.loc,
+        );
+      }
       const id = this.compileStatement(ctx, statement);
       if (id == null) continue;
       if (first == null) {
@@ -628,6 +687,38 @@ export class Compiler {
       prev = id;
     }
     return first;
+  }
+
+  /**
+   * Whether a compiled block has no next-statement connection in the editor.
+   * `control.forever` is excluded: PenguinMod grows a next connection for it
+   * via its `hasbreak` mutation (see `dynamicNext`).
+   * @param {Context} ctx
+   * @param {string} id
+   */
+  blockEndsScript(ctx, id) {
+    const block = ctx.target.blocks[id];
+    if (!block) return false;
+    if (TERMINAL_OPCODES.has(block.opcode)) return true;
+    if (block.opcode === "control_stop") {
+      return !(block.mutation && block.mutation.hasnext);
+    }
+    return false;
+  }
+
+  /** Human-readable name for a block that ends the script. */
+  terminalDescription(ctx, id) {
+    const block = ctx.target.blocks[id];
+    if (block.opcode === "procedures_return") return "`return`";
+    if (block.opcode === "control_delete_this_clone")
+      return "`control.deleteThisClone()`";
+    if (block.opcode === "control_stop") {
+      const option = block.fields.STOP_OPTION
+        ? block.fields.STOP_OPTION[0]
+        : "all";
+      return `\`control.stop(${JSON.stringify(option)})\``;
+    }
+    return `\`${block.opcode}\``;
   }
 
   // ------------------------------------------------------- statements
@@ -797,7 +888,7 @@ export class Compiler {
 
   compileReturn(ctx, node) {
     const id = this.addBlock(ctx, { opcode: "procedures_return" });
-    ctx.target.blocks[id].inputs.VALUE = node.value
+    ctx.target.blocks[id].inputs.return = node.value
       ? this.buildInputForSpec({ type: "any" }, node.value, id)
       : [1, [10, ""]];
     return id;
@@ -958,7 +1049,7 @@ export class Compiler {
       argumentids: JSON.stringify(fn.argIds),
       warp: String(fn.warp),
     };
-    if (fn.returns) mutation.return = "1";
+    if (fn.returns) mutation.returns = "true";
     ctx.target.blocks[id].mutation = mutation;
     ctx.target.blocks[id].inputs = inputs;
     this.reparentInputs(ctx, id, inputs);
@@ -971,7 +1062,8 @@ export class Compiler {
     if (expr === undefined || expr === null) return this.defaultInput(spec);
     if (spec.type === "menu") return this.menuInput(spec, expr, parentId);
     if (spec.type === "broadcast") return this.broadcastInput(expr, parentId);
-    if (spec.type === "boolean") return this.booleanInput(expr, parentId);
+    if (spec.type === "boolean")
+      return this.booleanInput(this.ctx, expr, parentId);
     const desc = this.emitExpr(this.ctx, expr);
     return this.valueInput(desc, spec, parentId);
   }
@@ -1400,7 +1492,7 @@ export class Compiler {
         // broadcasts live on the stage
         for (const [name, id] of this.broadcasts) target.broadcasts[id] = name;
         this.ensureStageAssets(target);
-        const comment = twConfigComment(this.projectConfig);
+        const comment = configComment(this.projectConfig);
         if (comment) {
           const commentId = uid("c");
           target.comments[commentId] = {
