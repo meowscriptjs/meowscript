@@ -45,6 +45,10 @@ export function md5hex(buf) {
 const DOS_TIME = 0; // 00:00:00
 const DOS_DATE = ((2024 - 1980) << 9) | (1 << 5) | 1; // 2024-01-01
 
+// Upper bound on a single entry's uncompressed size, guarding against
+// decompression bombs. 512 MiB is far beyond any realistic Scratch asset.
+const MAX_UNCOMPRESSED_SIZE = 512 * 1024 * 1024;
+
 /**
  * Build a ZIP archive entirely in memory.
  * @param {Array<{name: string, data: Buffer|Uint8Array, compress?: boolean}>} files
@@ -147,17 +151,28 @@ export function unzipSync(buf) {
       throw new Error("Corrupt ZIP central directory");
     const method = data.readUInt16LE(ptr + 10);
     const compSize = data.readUInt32LE(ptr + 20);
+    const uncompSize = data.readUInt32LE(ptr + 24);
     const nameLen = data.readUInt16LE(ptr + 28);
     const extraLen = data.readUInt16LE(ptr + 30);
     const commentLen = data.readUInt16LE(ptr + 32);
     const localOffset = data.readUInt32LE(ptr + 42);
     const name = data.slice(ptr + 46, ptr + 46 + nameLen).toString("utf8");
 
+    if (uncompSize > MAX_UNCOMPRESSED_SIZE)
+      throw new Error(
+        `ZIP entry "${name}" exceeds the ${MAX_UNCOMPRESSED_SIZE}-byte size limit`,
+      );
+
     const localNameLen = data.readUInt16LE(localOffset + 26);
     const localExtraLen = data.readUInt16LE(localOffset + 28);
     const dataStart = localOffset + 30 + localNameLen + localExtraLen;
     const raw = data.slice(dataStart, dataStart + compSize);
-    out.set(name, method === 8 ? zlib.inflateRawSync(raw) : raw);
+    out.set(
+      name,
+      method === 8
+        ? zlib.inflateRawSync(raw, { maxOutputLength: MAX_UNCOMPRESSED_SIZE })
+        : raw,
+    );
 
     ptr += 46 + nameLen + extraLen + commentLen;
   }
