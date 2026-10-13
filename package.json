@@ -40,5 +40,14 @@
     "globals": "^17.13.0",
     "prettier": "^3.9.10",
     "scratch-vm": "github:PenguinMod/PenguinMod-Vm#develop"
+  },
+  "overrides": {
+    "dompurify": "^3.4.17",
+    "immutable": "^3.8.4",
+    "webpack": "^5.111.1",
+    "scratch-parser": {
+      "ajv": "^6.15.0",
+      "jszip": "^3.10.2"
+    }
   }
 }
