@@ -24,17 +24,20 @@ import { loadExtensions } from "../src/extensions.js";
 
 function parseArgs(argv) {
   const args = { _: [], flags: {} };
+  const booleanFlags = new Set(["no-config", "json", "help", "h"]);
   for (let i = 0; i < argv.length; i++) {
     const token = argv[i];
     if (token.startsWith("--")) {
       const [key, inline] = token.slice(2).split("=");
       if (inline !== undefined) args.flags[key] = inline;
+      else if (booleanFlags.has(key)) args.flags[key] = true;
       else if (argv[i + 1] && !argv[i + 1].startsWith("-"))
         args.flags[key] = argv[++i];
       else args.flags[key] = true;
     } else if (token.startsWith("-")) {
       const key = token.slice(1);
-      if (argv[i + 1] && !argv[i + 1].startsWith("-"))
+      if (booleanFlags.has(key)) args.flags[key] = true;
+      else if (argv[i + 1] && !argv[i + 1].startsWith("-"))
         args.flags[key] = argv[++i];
       else args.flags[key] = true;
     } else {
@@ -156,7 +159,9 @@ async function cmdBuild(args) {
   const output =
     explicit ||
     (target.file
-      ? target.file.replace(/\.ms$/i, ".pmp")
+      ? /\.ms$/i.test(target.file)
+        ? target.file.replace(/\.ms$/i, ".pmp")
+        : `${target.file}.pmp`
       : path.join(
           target.dir,
           "build",
@@ -243,9 +248,17 @@ function cmdDecompile(args) {
   let assetPrefix = "";
   if (assetDir) {
     fs.mkdirSync(assetDir, { recursive: true });
+    const resolvedAssetDir = fs.realpathSync(assetDir);
     for (const [name, buffer] of files) {
-      if (name === "project.json") continue;
-      fs.writeFileSync(path.join(assetDir, name), buffer);
+      if (!/^[0-9a-f]{32}\.[a-z0-9]+(?![\s\S])/i.test(name)) continue;
+      const destination = path.resolve(resolvedAssetDir, name);
+      if (path.dirname(destination) !== resolvedAssetDir) continue;
+      // Existing symlinks could redirect an otherwise safe name outside the directory.
+      if (
+        fs.lstatSync(destination, { throwIfNoEntry: false })?.isSymbolicLink()
+      )
+        continue;
+      fs.writeFileSync(destination, buffer);
     }
     // Reference assets relative to the directory the .ms file will live in.
     const outDir = path.dirname(

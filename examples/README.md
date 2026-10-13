@@ -1,8 +1,9 @@
 # Examples
 
-Small, self-contained MeowScript projects that compile straight to a PenguinMod
-`.pmp`. Each example lives in its own directory with its own `meowscript.yml`,
-so you can build one at a time:
+Small MeowScript projects that compile straight to a PenguinMod `.pmp`.
+They depend on shared costumes in the repository's [`assets/`](../assets/)
+directory and cannot be copied standalone. Each example has its own
+`meowscript.yml`, so you can build one at a time from this repository:
 
 ```bash
 ms build examples/player     # -> examples/player/build/meowscript-player.pmp

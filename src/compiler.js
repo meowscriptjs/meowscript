@@ -42,11 +42,13 @@ const TERMINAL_OPCODES = new Set([
   "control_delete_this_clone",
 ]);
 
-let seed = 0;
+let seed = 0n;
 function uid(prefix = "b") {
-  seed = (seed + 1) % 0xffffff;
-  const rand = Math.floor(Math.random() * 0xffffff).toString(16);
-  return `${prefix}${seed.toString(16)}${rand}`.slice(0, 20);
+  seed += 1n;
+  const rand = Math.floor(Math.random() * 0x1000000)
+    .toString(16)
+    .padStart(6, "0");
+  return `${prefix}_${seed.toString(16)}_${rand}`;
 }
 
 /** @param {unknown} value */
@@ -391,7 +393,7 @@ export class Compiler {
     }
     const argIds = decl.params.map((_, i) => `arg${i}`);
     const proccode = decl.params.length
-      ? `${decl.name} ${decl.params.map(() => "%s").join(" ")}`
+      ? `${decl.name} ${decl.params.map((param) => (param.boolean ? "%b" : "%s")).join(" ")}`
       : decl.name;
     ctx.funcs.set(decl.name, {
       name: decl.name,

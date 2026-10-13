@@ -3,7 +3,7 @@
  *
  * MeowScript keeps its catalog centralized, so third-party extensions are
  * supported by *synthesizing* catalog entries at build time: the extension
- * source is evaluated in a minimal `node:vm` sandbox that shims the
+ * source is evaluated in an isolated QuickJS WebAssembly runtime that shims the
  * `Scratch.*` API it expects, then `getInfo()` is read back and translated into
  * the same descriptor shape used by `catalog.js`.
  *
@@ -23,7 +23,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import vm from "node:vm";
+import { getQuickJS } from "quickjs-emscripten";
 
 /** `Scratch.BlockType` (values used by scratch-vm / PenguinMod). */
 export const BlockType = {
@@ -406,17 +406,17 @@ function makeSandbox(registered, { unsandboxed = false } = {}) {
         /* legacy ScratchX extensions unsupported */
       },
     },
-    console,
+    console: permissive("console"),
     // Metadata extraction is synchronous and extension timers must never fire:
     // they would outlive the sandbox and could hold the CLI process open.
     setTimeout: () => 0,
     clearTimeout: () => {},
     setInterval: () => 0,
     clearInterval: () => {},
-    URL,
-    URLSearchParams,
-    TextEncoder,
-    TextDecoder,
+    URL: permissive("URL"),
+    URLSearchParams: permissive("URLSearchParams"),
+    TextEncoder: permissive("TextEncoder"),
+    TextDecoder: permissive("TextDecoder"),
     Uint8Array,
     ArrayBuffer,
     Math,
@@ -446,21 +446,90 @@ function makeSandbox(registered, { unsandboxed = false } = {}) {
   return sandbox;
 }
 
-/** Evaluate extension source and return the `getInfo()` results. */
-function evaluateExtension(source, filename, { unsandboxed = false } = {}) {
-  const registered = [];
-  const context = vm.createContext(makeSandbox(registered, { unsandboxed }));
-  const script = new vm.Script(source, { filename });
-  script.runInContext(context, { timeout: 5000 });
-
-  const infos = [];
-  for (const extension of registered) {
-    if (!extension) continue;
-    if (typeof extension.getInfo === "function")
-      infos.push(extension.getInfo());
-    else infos.push(extension);
+/** Encode only our trusted shim definitions as source, without sharing objects. */
+function shimSource(value) {
+  if (typeof value === "function") {
+    const source = value.toString();
+    return /^[\w$]+\(/.test(source) ? `function ${source}` : source;
   }
-  return infos;
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  return `{${Object.entries(Object.getOwnPropertyDescriptors(value))
+    .map(([name, descriptor]) =>
+      descriptor.get
+        ? descriptor.get.toString()
+        : `${JSON.stringify(name)}: (${shimSource(descriptor.value)})`,
+    )
+    .join(",")}}`;
+}
+
+/** Evaluate source, getInfo() and serialization inside the same execution limit. */
+async function evaluateExtension(
+  source,
+  filename,
+  { unsandboxed = false } = {},
+) {
+  const QuickJS = await getQuickJS();
+  const runtime = QuickJS.newRuntime();
+  runtime.setMemoryLimit(64 * 1024 * 1024);
+  runtime.setMaxStackSize(1024 * 1024);
+  const deadline = Date.now() + 5000;
+  runtime.setInterruptHandler(() => Date.now() >= deadline);
+  const context = runtime.newContext();
+  try {
+    // Every shim function is created in QuickJS. Only source text enters and
+    // JSON text leaves; extensions never receive host functions or Node APIs.
+    const shims = Object.entries({
+      BlockType,
+      ArgumentType,
+      ArgumentAlignment,
+      BlockShape,
+      NotchShape,
+      TargetType,
+      Clone,
+      Color,
+      Cast,
+    })
+      .map(([name, value]) => `const ${name} = ${shimSource(value)};`)
+      .join("\n");
+    const result = context.evalCode(
+      `(() => {
+        ${shims}
+        ${permissive.toString()}
+        ${makeSandbox.toString()}
+        const registered = [];
+        Object.assign(globalThis, makeSandbox(registered, {unsandboxed: ${unsandboxed}}));
+        const evaluate = eval;
+        const stringify = JSON.stringify;
+        evaluate(${JSON.stringify(source)});
+        const infos = [];
+        for (const extension of registered) {
+          if (!extension) continue;
+          infos.push(typeof extension.getInfo === "function" ? extension.getInfo() : extension);
+        }
+        return stringify(infos);
+      })()`,
+      filename,
+    );
+    try {
+      if (result.error) {
+        const error = context.dump(result.error);
+        const timedOut = Date.now() >= deadline;
+        const failure = new Error(
+          timedOut
+            ? "extension execution timed out"
+            : error?.message || "extension evaluation failed",
+        );
+        if (timedOut) failure.code = "EXTENSION_TIMEOUT";
+        throw failure;
+      }
+      return JSON.parse(context.getString(result.value));
+    } finally {
+      result.dispose();
+    }
+  } finally {
+    context.dispose();
+    runtime.dispose();
+  }
 }
 
 // ------------------------------------------------------------------- loading
@@ -496,16 +565,17 @@ async function resolveSource(entry, baseDir, fetchImpl) {
  * @param {string} filename
  * @returns {{infos: object[], unsandboxed: boolean}}
  */
-function evaluateExtensionAny(source, filename) {
+async function evaluateExtensionAny(source, filename) {
   try {
     return {
-      infos: evaluateExtension(source, filename, { unsandboxed: false }),
+      infos: await evaluateExtension(source, filename, { unsandboxed: false }),
       unsandboxed: false,
     };
   } catch (sandboxedError) {
+    if (sandboxedError.code === "EXTENSION_TIMEOUT") throw sandboxedError;
     try {
       return {
-        infos: evaluateExtension(source, filename, { unsandboxed: true }),
+        infos: await evaluateExtension(source, filename, { unsandboxed: true }),
         unsandboxed: true,
       };
     } catch (unsandboxedError) {
@@ -567,10 +637,8 @@ export async function loadExtensions(
         baseDir,
         fetchImpl,
       );
-      const { infos, unsandboxed: needsUnsandboxed } = evaluateExtensionAny(
-        source,
-        remote ? url : file,
-      );
+      const { infos, unsandboxed: needsUnsandboxed } =
+        await evaluateExtensionAny(source, remote ? url : file);
       if (infos.length === 0) {
         warnings.push(
           `extension ${label} did not call Scratch.extensions.register()`,

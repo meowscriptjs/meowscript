@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "MeowScript (.ms) — a catalog-driven DSL compiler that emits PenguinMod .pmp projects.",
   "type": "module",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "main": "src/index.js",
   "bin": {
     "meowscript": "bin/meowscript.js",
@@ -30,7 +30,8 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "js-yaml": "^4.1.0"
+    "js-yaml": "^4.1.0",
+    "quickjs-emscripten": "^0.32.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -11,6 +11,7 @@ import { discoverSources, mergePrograms } from "../src/project.js";
 import { build } from "../src/build.js";
 import { parse } from "../src/parser.js";
 import { ParseError, CompileError } from "../src/errors.js";
+import { zipSync } from "../src/sb3.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const bin = path.join(root, "bin", "meowscript.js");
@@ -236,6 +237,96 @@ test("building a single file defaults to a .pmp next to the source", () => {
   assert.ok(!fs.existsSync(path.join(dir, "game.sb3")));
 });
 
+test("boolean CLI flags leave the following input positional", () => {
+  const dir = tmp();
+  const source = path.join(dir, "game.source");
+  write(source, 'sprite "S" { when greenFlag { looks.show(); } }');
+  for (const flag of ["--no-config", "--json", "--help", "-h", "--h"]) {
+    const checked = spawnSync(process.execPath, [bin, "c", flag, source], {
+      cwd: dir,
+      encoding: "utf8",
+    });
+    assert.equal(checked.status, 0, checked.stderr);
+    assert.match(checked.stdout, /Checked 1 file/);
+  }
+  const output = path.join(dir, "explicit.pmp");
+  const built = spawnSync(
+    process.execPath,
+    [bin, "b", "--no-config", source, `--output=${output}`],
+    {
+      cwd: dir,
+      encoding: "utf8",
+    },
+  );
+  assert.equal(built.status, 0, built.stderr);
+  assert.ok(fs.existsSync(output));
+});
+
+test("building sources without .ms appends .pmp and preserves the source", () => {
+  const dir = tmp();
+  const content = 'sprite "S" { when greenFlag { looks.show(); } }';
+  for (const name of ["game", "game.txt", "game.MS"]) {
+    const source = path.join(dir, name);
+    write(source, content);
+    const built = spawnSync(process.execPath, [bin, "b", source], {
+      encoding: "utf8",
+    });
+    assert.equal(built.status, 0, built.stderr);
+    assert.equal(fs.readFileSync(source, "utf8"), content);
+    const output = name.endsWith(".MS") ? "game.pmp" : `${name}.pmp`;
+    assert.ok(fs.existsSync(path.join(dir, output)));
+  }
+});
+
+test("decompile extracts only flat asset names and skips symlinks", () => {
+  const dir = tmp();
+  const assetDir = path.join(dir, "assets");
+  const assetName = `${"a".repeat(32)}.svg`;
+  const linkName = `${"b".repeat(32)}.wav`;
+  const outside = path.join(dir, "outside.wav");
+  write(outside, "original");
+  fs.mkdirSync(assetDir);
+  fs.symlinkSync(outside, path.join(assetDir, linkName));
+  const unsafeNames = [
+    "../outside.wav",
+    outside,
+    "..\\outside.wav",
+    `nested/${assetName}`,
+    "wrong.svg",
+    `${"a".repeat(31)}.svg`,
+    `${assetName}/..`,
+    `${assetName}\n`,
+  ];
+  const { project } = build({ source: 'sprite "S" {}', useConfigFile: false });
+  const input = path.join(dir, "input.pmp");
+  fs.writeFileSync(
+    input,
+    zipSync([
+      { name: "project.json", data: Buffer.from(JSON.stringify(project)) },
+      ...[assetName, linkName, ...unsafeNames].map((name) => ({
+        name,
+        data: Buffer.from("asset"),
+      })),
+    ]),
+  );
+  const output = path.join(dir, "out.ms");
+  const result = spawnSync(
+    process.execPath,
+    [bin, "d", input, "--assets", assetDir, "-o", output],
+    {
+      encoding: "utf8",
+    },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(
+    fs.readFileSync(path.join(assetDir, assetName), "utf8"),
+    "asset",
+  );
+  assert.equal(fs.readFileSync(outside, "utf8"), "original");
+  assert.deepEqual(fs.readdirSync(assetDir).sort(), [assetName, linkName]);
+  assert.ok(fs.existsSync(output));
+});
+
 test("catalog lists blocks from extensions loaded over a URL", async () => {
   const dir = tmp();
   const server = http.createServer((req, res) => {
@@ -263,9 +354,13 @@ test("catalog lists blocks from extensions loaded over a URL", async () => {
     );
     assert.match(listed.stdout, /from extensions\)/);
 
-    const json = await execFileAsync(process.execPath, [bin, "l", "--json"], {
-      cwd: dir,
-    });
+    const json = await execFileAsync(
+      process.execPath,
+      [bin, "l", "--json", dir],
+      {
+        cwd: root,
+      },
+    );
     const catalog = JSON.parse(json.stdout);
     assert.equal(catalog["signals.send"].opcode, "signals_send");
     assert.equal(catalog["motion.moveSteps"].opcode, "motion_movesteps");

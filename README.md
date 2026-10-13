@@ -10,9 +10,9 @@
 - **Variables, lists and expressions.** `let` / `cloud let` / `list`, `=`/`+=`/`-=`/`*=`/`/=`, and full infix expressions with correct precedence (`+ - * / %`, comparisons, `and`/`or`/`not`).
 - **Whole-project builds.** Point the compiler at a directory and every `.ms` file is merged into one project, sharing globals and the Stage.
 - **PenguinMod settings.** `meowscript.yml` is emitted as a real config stage comment, so framerate / turbo / interpolation / stage size survive a round-trip through PenguinMod.
-- **Extensions.** Load PenguinMod extensions from a path or URL, evaluate them in a sandbox, and synthesize catalog entries for their blocks automatically — including extensions that only load unsandboxed, which are flagged so they can be allowed in the editor.
+- **Extensions.** Load PenguinMod extensions from a path or URL, evaluate them in an isolated QuickJS runtime, and synthesize catalog entries for their blocks automatically — including extensions that only load unsandboxed, which are flagged so they can be allowed in the editor.
 - **Round-trip friendly.** `decompile` turns a `.pmp` back into parseable `.ms`, using the same catalog as the compiler.
-- **Zero-dependency project I/O.** A built-in ZIP reader/writer and asset helpers (md5 addressing, image/WAV headers) with no runtime dependencies beyond `js-yaml`.
+- **Project I/O.** A built-in ZIP reader/writer and asset helpers (md5 addressing, image/WAV headers). YAML parsing uses `js-yaml`; extension isolation uses `quickjs-emscripten`.
 
 ## ℹ️ Overview
 
@@ -33,7 +33,7 @@ Scaffold and build in two commands:
 ```bash
 ms init my-game        # creates meowscript.yml, src/main.ms and an example asset
 cd my-game
-ms build               # -> build/my-game.pmp
+ms build               # -> build/my-meowscript-project.pmp
 ```
 
 A MeowScript source file example:
@@ -195,7 +195,7 @@ Non-default settings are written into a Stage comment ending in `// _twconfig_` 
 
 ### Extensions
 
-Extensions listed under `project.extensions` are evaluated in a sandbox (`node:vm`, no filesystem/network/`process`) and their `getInfo()` blocks are turned into catalog entries, so `signals.send("hi")` compiles to the `signals_send` opcode. Remote `http(s)://` extensions are also recorded in `project.extensionURLs`. Local files raise a warning about bundling/hosting since the editor cannot load them from disk. PenguinMod's gallery lives at [extensions.penguinmod.com](https://extensions.penguinmod.com/).
+Extensions listed under `project.extensions` are evaluated in an isolated QuickJS WebAssembly runtime with no Node APIs, filesystem or network access. Source execution, `getInfo()` and metadata serialization share a five-second limit and a 64 MiB memory limit. Their blocks become catalog entries, so `signals.send("hi")` compiles to the `signals_send` opcode. Browser helpers such as `URL` and `TextEncoder` are inert metadata stubs. Remote `http(s)://` extensions are also recorded in `project.extensionURLs`. Local files raise a warning about bundling/hosting since the editor cannot load them from disk. PenguinMod's gallery lives at [extensions.penguinmod.com](https://extensions.penguinmod.com/).
 
 #### Unsandboxed extensions
 

@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import {
   loadExtensions,
   BlockType,
@@ -129,6 +131,57 @@ test("runs extensions in a sandbox without process or require", async () => {
     [],
   );
   assert.deepEqual(ids, ["safe"]);
+});
+
+test("shim constructors cannot reach Node APIs or mutate host objects", async (t) => {
+  const dir = tempExtension(`
+    const constructors = [
+      Scratch.extensions.register.constructor,
+      Scratch.Cast.toString.constructor,
+      Scratch.Color.decimalToHex.constructor,
+      Scratch.Clone.simple.constructor,
+      console.log.constructor, setTimeout.constructor,
+      Math.max.constructor, URL.constructor,
+      Uint8Array.constructor, Object.constructor
+    ];
+    for (const Constructor of constructors) {
+      const hostProcess = Constructor('return typeof process === "undefined" ? null : process')();
+      if (typeof hostProcess?.pid === 'number') {
+        throw new Error('Node APIs leaked');
+      }
+    }
+    Object.prototype.meowExtensionPollution = true;
+    Scratch.extensions.register({getInfo() { return {id: 'isolated', blocks: []}; }});
+  `);
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const { ids, warnings } = await loadExtensions(["./ext.js"], {
+    baseDir: dir,
+  });
+  assert.deepEqual(ids, ["isolated"], warnings.join("\n"));
+  assert.equal(Object.prototype.meowExtensionPollution, undefined);
+});
+
+test("bounds source execution and getInfo execution in the CLI", (t) => {
+  const bin = fileURLToPath(new URL("../bin/meowscript.js", import.meta.url));
+  for (const source of [
+    "while (true) {}",
+    "Scratch.extensions.register({getInfo() { while (true) {} }});",
+    "Scratch.extensions.register({getInfo() { return {toJSON() { while (true) {} }}; }});",
+  ]) {
+    const dir = tempExtension(source);
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+    fs.writeFileSync(
+      path.join(dir, "meowscript.yml"),
+      'project:\n  extensions: ["./ext.js"]\n',
+    );
+    const result = spawnSync(process.execPath, [bin, "catalog", dir], {
+      encoding: "utf8",
+      timeout: 12000,
+    });
+    assert.equal(result.error, undefined, result.error?.message);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stderr, /extension execution timed out/);
+  }
 });
 
 const UNSANDBOXED = `

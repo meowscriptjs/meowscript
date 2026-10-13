@@ -26,6 +26,8 @@ sprite "Player Character" {
         drawGround();
         motion.goToXY(-160, -80);
         steps = 0;
+        vy = 0;
+        grounded = true;
         control.forever {
             update();
         }

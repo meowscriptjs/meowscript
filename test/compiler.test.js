@@ -85,6 +85,66 @@ test("marks returning procedures with a return mutation", () => {
   assert.ok(ret.inputs.return, "procedures_return uses the `return` input");
 });
 
+test("keeps IDs unique when counter and random digits would overlap", async (t) => {
+  const { Compiler } = await import("../src/compiler.js?uid-regression");
+  let call = 0;
+  t.mock.method(Math, "random", () => {
+    call += 1;
+    return ((call === 1 ? 0x23 : 0x3) + 0.5) / 0xffffff;
+  });
+  const compiler = new Compiler();
+  const ids = Array.from({ length: 0x12 }, (_, i) =>
+    compiler.broadcast(`event${i}`),
+  );
+  assert.equal(new Set(ids).size, ids.length);
+  assert.ok(ids.every((id) => id.startsWith("bc")));
+});
+
+test("keeps different prefixes distinct from hexadecimal counter digits", async (t) => {
+  const { Compiler } = await import("../src/compiler.js?uid-prefix-regression");
+  t.mock.method(Math, "random", () => 0);
+  const compiler = new Compiler();
+  const broadcastId = compiler.broadcast("event");
+  const ctx = { target: { blocks: {} } };
+  for (let i = 1; i < 0xc1; i += 1) {
+    compiler.addBlock(ctx, { opcode: "looks_show" });
+  }
+  assert.ok(!Object.hasOwn(ctx.target.blocks, broadcastId));
+  assert.equal(Object.keys(ctx.target.blocks).length, 0xc0);
+});
+
+test("uses boolean procedure slots consistently in prototypes and calls", () => {
+  for (const modifiers of ["returning warp", "warp returning"]) {
+    const { project } = compile(
+      parse(`
+      sprite "S" {
+        ${modifiers} function choose(flag: boolean, text: string, count: number) {
+          if (flag) { return text; }
+          return count;
+        }
+        when greenFlag { looks.say(choose(1 > 0, "yes", 2)); }
+      }
+    `),
+    );
+    const sprite = project.targets.find((target) => !target.isStage);
+    const blocks = Object.values(sprite.blocks);
+    const prototype = blocks.find(
+      (block) => block.opcode === "procedures_prototype",
+    );
+    const call = blocks.find((block) => block.opcode === "procedures_call");
+    assert.equal(prototype.mutation.proccode, "choose %b %s %s");
+    assert.equal(call.mutation.proccode, prototype.mutation.proccode);
+    assert.equal(prototype.mutation.warp, "true");
+    assert.equal(prototype.mutation.returns, "true");
+    const argId = JSON.parse(prototype.mutation.argumentids)[0];
+    assert.equal(
+      sprite.blocks[prototype.inputs[argId][1]].opcode,
+      "argument_reporter_boolean",
+    );
+    assert.equal(sprite.blocks[call.inputs[argId][1]].opcode, "operator_gt");
+  }
+});
+
 test("normalizes hex colors and emits a stop mutation", () => {
   const ast = parse(
     `

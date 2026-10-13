@@ -58,3 +58,24 @@ test("every example loads and runs in the PenguinMod runtime", async () => {
     vm.stopAll();
   }
 });
+
+test("restarting the player resets a jump in progress", async () => {
+  const { sb3 } = build({ dir: path.join(examplesDir, "player") });
+  const vm = await loadProject(sb3);
+  const sprite = vm.runtime.targets.find((target) => !target.isStage);
+  const variables = Object.fromEntries(
+    Object.values(sprite.variables).map((variable) => [
+      variable.name,
+      variable,
+    ]),
+  );
+  variables.vy.value = 12;
+  variables.grounded.value = false;
+  variables.steps.value = 50;
+  vm.greenFlag();
+  for (let i = 0; i < 10; i += 1) vm.runtime._step();
+  assert.equal(variables.vy.value, 0);
+  assert.equal(variables.grounded.value, "true");
+  assert.equal(variables.steps.value, 0);
+  vm.stopAll();
+});

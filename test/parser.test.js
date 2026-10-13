@@ -34,6 +34,24 @@ test("parses expressions with correct precedence", () => {
   assert.equal(init.right.op, "*");
 });
 
+test("accepts function modifiers in either order", () => {
+  for (const modifiers of ["returning warp", "warp returning"]) {
+    const ast = parse(
+      `sprite "S" { ${modifiers} function value() { return 1; } }`,
+    );
+    const fn = ast.sprites[0].body[0];
+    assert.equal(fn.type, "FunctionDecl");
+    assert.equal(fn.returns, true);
+    assert.equal(fn.warp, true);
+  }
+  for (const modifier of ["returning", "warp", ""]) {
+    const ast = parse(`sprite "S" { ${modifier} function noop() {} }`);
+    const fn = ast.sprites[0].body[0];
+    assert.equal(fn.returns, modifier === "returning");
+    assert.equal(fn.warp, modifier === "warp");
+  }
+});
+
 test("parses if/else-if chains and nested blocks", () => {
   const ast = parse(`
         sprite "S" {

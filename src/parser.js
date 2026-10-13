@@ -161,21 +161,23 @@ class Parser {
         case "function":
           return this.parseFunctionDecl(false, false);
         case "returning":
-          if (
+        case "warp": {
+          const otherModifier =
+            tok.value === "returning" ? "warp" : "returning";
+          const combined =
             this.peek(1).type === "ident" &&
-            this.peek(1).value === "function"
+            this.peek(1).value === otherModifier;
+          if (
+            this.peek(combined ? 2 : 1).type === "ident" &&
+            this.peek(combined ? 2 : 1).value === "function"
           ) {
-            return this.parseFunctionDecl(true, false);
+            return this.parseFunctionDecl(
+              tok.value === "returning" || combined,
+              tok.value === "warp" || combined,
+            );
           }
           break;
-        case "warp":
-          if (
-            this.peek(1).type === "ident" &&
-            this.peek(1).value === "function"
-          ) {
-            return this.parseFunctionDecl(false, true);
-          }
-          break;
+        }
         case "when":
           return this.parseHat();
         case "if":
@@ -229,8 +231,7 @@ class Parser {
 
   parseFunctionDecl(returns, warp) {
     const tok = this.peek();
-    if (this.atIdent("returning")) this.next();
-    if (this.atIdent("warp")) this.next();
+    while (this.atIdent("returning") || this.atIdent("warp")) this.next();
     this.expect("function");
     const name = this.expectIdent();
     this.expect("(");
