@@ -39,7 +39,7 @@
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.13.0",
     "prettier": "^3.9.10",
-    "scratch-vm": "github:PenguinMod/PenguinMod-Vm#develop"
+    "scratch-vm": "github:PenguinMod/PenguinMod-Vm#75ef6994e55270b9c2a2f3cb2edf6a5bf31cdf2a"
   },
   "overrides": {
     "dompurify": "^3.4.17",
