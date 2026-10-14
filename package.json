@@ -1,0 +1,53 @@
+{
+  "name": "@meowscriptjs/meowscript",
+  "version": "1.0.0",
+  "description": "Compile PenguinMod projects with a JS-like DSL.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "main": "src/index.js",
+  "bin": {
+    "meowscript": "bin/meowscript.js",
+    "ms": "bin/meowscript.js"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./catalog": "./src/catalog.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "build:example": "node bin/meowscript.js build examples/player -o build/player.pmp",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0",
+    "quickjs-emscripten": "^0.32.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.12.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10",
+    "scratch-vm": "github:PenguinMod/PenguinMod-Vm#75ef6994e55270b9c2a2f3cb2edf6a5bf31cdf2a"
+  },
+  "overrides": {
+    "dompurify": "^3.4.17",
+    "immutable": "^3.8.4",
+    "webpack": "^5.111.1",
+    "scratch-parser": {
+      "ajv": "^6.15.0",
+      "jszip": "^3.10.2"
+    }
+  }
+}

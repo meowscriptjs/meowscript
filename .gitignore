@@ -37,6 +37,10 @@ bower_components
 # Compiled binary addons (https://nodejs.org/api/addons.html)
 build/Release
 
+# Compiled MeowScript projects — every `build/` directory, at any depth
+# (e.g. the repo root, `examples/*/build/`, …).
+**/build/
+
 # Dependency directories
 node_modules/
 jspm_packages/
@@ -147,3 +151,6 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Cloned sources used for reference only (PenguinMod VM/GUI/gallery/packager)
+reference/

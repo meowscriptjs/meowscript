@@ -1,0 +1,7 @@
+project:
+  name: "MeowScript Painter"
+  fps: 60
+  width: 480
+  height: 360
+  turbo: false
+  interpolation: true
