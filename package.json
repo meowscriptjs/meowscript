@@ -1,7 +1,7 @@
 {
   "name": "@meowscriptjs/meowscript",
   "version": "1.0.0",
-  "description": "MeowScript (.ms) — a catalog-driven DSL compiler that emits PenguinMod .pmp projects.",
+  "description": "Compile PenguinMod projects with a JS-like DSL.",
   "type": "module",
   "license": "Apache-2.0",
   "main": "src/index.js",
