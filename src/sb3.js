@@ -48,6 +48,8 @@ const DOS_DATE = ((2024 - 1980) << 9) | (1 << 5) | 1; // 2024-01-01
 // Upper bound on a single entry's uncompressed size, guarding against
 // decompression bombs. 512 MiB is far beyond any realistic Scratch asset.
 const MAX_UNCOMPRESSED_SIZE = 512 * 1024 * 1024;
+// Cap cumulative output retained while extracting an archive as well.
+const MAX_ARCHIVE_UNCOMPRESSED_SIZE = 512 * 1024 * 1024;
 
 /**
  * Build a ZIP archive entirely in memory.
@@ -145,6 +147,7 @@ export function unzipSync(buf) {
   const count = data.readUInt16LE(eocd + 10);
   let ptr = data.readUInt32LE(eocd + 16);
   const out = new Map();
+  let totalUncompressedSize = 0;
 
   for (let i = 0; i < count; i++) {
     if (data.readUInt32LE(ptr) !== 0x02014b50)
@@ -162,17 +165,35 @@ export function unzipSync(buf) {
       throw new Error(
         `ZIP entry "${name}" exceeds the ${MAX_UNCOMPRESSED_SIZE}-byte size limit`,
       );
+    const remainingSize = MAX_ARCHIVE_UNCOMPRESSED_SIZE - totalUncompressedSize;
+    if (uncompSize > remainingSize)
+      throw new Error(
+        `ZIP archive exceeds the ${MAX_ARCHIVE_UNCOMPRESSED_SIZE}-byte size limit`,
+      );
+    if (method !== 0 && method !== 8)
+      throw new Error(`Unsupported ZIP compression method: ${method}`);
 
     const localNameLen = data.readUInt16LE(localOffset + 26);
     const localExtraLen = data.readUInt16LE(localOffset + 28);
     const dataStart = localOffset + 30 + localNameLen + localExtraLen;
     const raw = data.slice(dataStart, dataStart + compSize);
-    out.set(
-      name,
+    const uncompressed =
       method === 8
-        ? zlib.inflateRawSync(raw, { maxOutputLength: MAX_UNCOMPRESSED_SIZE })
-        : raw,
-    );
+        ? zlib.inflateRawSync(raw, {
+            // zlib requires a positive limit, even for an empty entry.
+            maxOutputLength: Math.max(
+              1,
+              Math.min(MAX_UNCOMPRESSED_SIZE, remainingSize),
+            ),
+          })
+        : raw;
+    // Account for actual output too, in case a header understates its size.
+    totalUncompressedSize += Math.max(uncompSize, uncompressed.length);
+    if (totalUncompressedSize > MAX_ARCHIVE_UNCOMPRESSED_SIZE)
+      throw new Error(
+        `ZIP archive exceeds the ${MAX_ARCHIVE_UNCOMPRESSED_SIZE}-byte size limit`,
+      );
+    out.set(name, uncompressed);
 
     ptr += 46 + nameLen + extraLen + commentLen;
   }
@@ -250,9 +271,10 @@ export function imageSize(buffer, format) {
     }
     if (format === "svg") {
       const text = buffer.toString("utf8");
-      const w = /<svg[^>]*\bwidth\s*=\s*["']([\d.]+)/i.exec(text);
-      const h = /<svg[^>]*\bheight\s*=\s*["']([\d.]+)/i.exec(text);
-      if (w && h) return { width: Number(w[1]), height: Number(h[1]) };
+      const w = /<svg[^>]*\bwidth\s*=\s*["']([\d.]+)([^"']*)["']/i.exec(text);
+      const h = /<svg[^>]*\bheight\s*=\s*["']([\d.]+)([^"']*)["']/i.exec(text);
+      if (w && h && !w[2].includes("%") && !h[2].includes("%"))
+        return { width: Number(w[1]), height: Number(h[1]) };
       const vb = /viewBox\s*=\s*["']([^"']+)["']/i.exec(text);
       if (vb) {
         const nums = vb[1]
@@ -282,21 +304,29 @@ export function wavInfo(buffer) {
       buffer.toString("ascii", 0, 4) === "RIFF" &&
       buffer.toString("ascii", 8, 12) === "WAVE"
     ) {
-      const rate = buffer.readUInt32LE(24);
-      const bits = buffer.readUInt16LE(34);
-      const channels = buffer.readUInt16LE(22);
-      // locate the data chunk
+      let fmt = null;
+      // Locate the format and data chunks, skipping unknown chunks and padding.
       let i = 12;
       while (i + 8 <= buffer.length) {
         const id = buffer.toString("ascii", i, i + 4);
         const size = buffer.readUInt32LE(i + 4);
-        if (id === "data") {
-          const bytesPerSample = Math.max(1, (bits / 8) * channels);
-          return { rate, sampleCount: Math.floor(size / bytesPerSample) };
+        if (id === "fmt " && size >= 16) {
+          fmt = {
+            rate: buffer.readUInt32LE(i + 12),
+            bits: buffer.readUInt16LE(i + 22),
+            channels: buffer.readUInt16LE(i + 10),
+          };
+        }
+        if (id === "data" && fmt) {
+          const bytesPerSample = Math.max(1, (fmt.bits / 8) * fmt.channels);
+          return {
+            rate: fmt.rate,
+            sampleCount: Math.floor(size / bytesPerSample),
+          };
         }
         i += 8 + size + (size % 2);
       }
-      return { rate, sampleCount: 0 };
+      return { rate: fmt?.rate ?? 48000, sampleCount: 0 };
     }
   } catch {
     /* ignore */
