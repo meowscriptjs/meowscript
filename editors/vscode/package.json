@@ -1,0 +1,54 @@
+{
+  "name": "meowscript-language",
+  "displayName": "MeowScript Language Features",
+  "description": "Syntax highlighting, diagnostics and completions for MeowScript (.ms) — runs on the web (vscode.dev) too.",
+  "version": "0.1.0",
+  "publisher": "meowscriptjs",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/meowscriptjs/meowscript",
+    "directory": "editors/vscode"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "browser": "./dist/web/extension.js",
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "activationEvents": [],
+  "contributes": {
+    "languages": [
+      {
+        "id": "meowscript",
+        "aliases": [
+          "MeowScript",
+          "meowscript"
+        ],
+        "extensions": [
+          ".ms"
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test:web": "node .vscode-test.mjs",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "1.85",
+    "@vscode/test-web": "^0.0.81",
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  }
+}
