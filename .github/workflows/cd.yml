@@ -35,3 +35,44 @@ jobs:
         run: npm test
       - name: Publish to npm
         run: npm publish --provenance --access public
+
+  publish-extension:
+    name: Publish VS Code extension
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: editors/vscode
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+      - name: Set up npm
+        run: npm install --global npm@11
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Package extension
+        run: npx vsce package
+      - name: Read extension version
+        run: echo "VERSION=$(node -p "require('./package.json').version")" >> "$GITHUB_ENV"
+      - name: Warn about missing publisher tokens
+        if: env.VSCE_PAT == '' || env.OVSX_PAT == ''
+        run: |
+          echo "::warning::VSCE_PAT and/or OVSX_PAT secrets are not configured; the extension was NOT published to every marketplace."
+      - name: Publish to Visual Studio Marketplace
+        if: env.VSCE_PAT != ''
+        run: npx vsce publish -p "$VSCE_PAT" --packagePath "meowscript-language-$VERSION.vsix"
+      - name: Publish to Open VSX
+        if: env.OVSX_PAT != ''
+        run: npx ovsx publish "meowscript-language-$VERSION.vsix" -p "$OVSX_PAT"
