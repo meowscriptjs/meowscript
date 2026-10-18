@@ -9,6 +9,7 @@
 - **Hats, functions and reporters.** `when greenFlag { … }`, custom `function` commands, and `returning function` reporters that map onto Scratch custom-block mutations.
 - **Variables, lists and expressions.** `let` / `cloud let` / `list`, `=`/`+=`/`-=`/`*=`/`/=`, and full infix expressions with correct precedence (`+ - * / %`, comparisons, `and`/`or`/`not`).
 - **Whole-project builds.** Point the compiler at a directory and every `.ms` file is merged into one project, sharing globals and the Stage.
+- **Editor support.** A web-compatible VS Code extension (syntax highlighting, diagnostics, completions) lives in [`editors/vscode/`](editors/vscode/).
 - **PenguinMod settings.** `meowscript.yml` is emitted as a real config stage comment, so framerate / turbo / interpolation / stage size survive a round-trip through PenguinMod.
 - **Extensions.** Load PenguinMod extensions from a path or URL, evaluate them in an isolated QuickJS runtime, and synthesize catalog entries for their blocks automatically — including extensions that only load unsandboxed, which are flagged so they can be allowed in the editor.
 - **Round-trip friendly.** `decompile` turns a `.pmp` back into parseable `.ms`, using the same catalog as the compiler.
@@ -75,6 +76,10 @@ meowscript init [dir]                                                 (alias: i)
 ```
 
 `ms` is a shorthand for `meowscript` (so `ms b` builds and `ms c` checks). `build` defaults to the working directory and writes `build/<name>.pmp`; pass a `.ms` file to build just that one.
+
+## 🧩 Editor support
+
+A [VS Code extension](editors/vscode/) for `.ms` files ships from this repository: syntax highlighting, comment toggling, snippets, live error squiggles straight from the lexer/parser, and completions for every catalog block. It is web-compatible (no Node APIs), so it runs on vscode.dev, github.dev and code-server as well as the desktop. See [`editors/vscode/README.md`](editors/vscode/README.md) to build or test it; releases are published to the VS Code Marketplace and Open VSX automatically on version tags.
 
 ## 📖 Language reference
 
@@ -235,7 +240,7 @@ _For contributors:_ `npm install` then `npm test` (Node's built-in test runner).
 
 Bug reports and feature requests are welcome — please open an issue on the repository. When reporting a compile error, include the `.ms` source and the full diagnostic, which points at the exact file, line and column.
 
-Contributions are welcome too: the easiest places to start are adding catalog entries in `src/catalog.js`, extending the language in `src/parser.js`, or adding fixtures under `test/`.
+Contributions are welcome too: the easiest places to start are adding catalog entries in `src/catalog.js`, extending the language in `src/parser.js`, adding fixtures under `test/`, or improving the editor tooling in `editors/vscode/`.
 
 ## 📄 License
 
