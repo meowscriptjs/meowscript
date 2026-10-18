@@ -33,7 +33,14 @@
         ],
         "extensions": [
           ".ms"
-        ]
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "meowscript",
+        "path": "./snippets/meowscript.json"
       }
     ]
   },
