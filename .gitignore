@@ -41,6 +41,9 @@ build/Release
 # (e.g. the repo root, `examples/*/build/`, …).
 **/build/
 
+# Packaged VS Code extensions (editors/vscode)
+*.vsix
+
 # Dependency directories
 node_modules/
 jspm_packages/

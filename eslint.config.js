@@ -11,17 +11,17 @@ export default [
   {
     // Vendored reference sources, dependencies and build output are never linted.
     ignores: [
-      "node_modules/**",
+      "**/node_modules/**",
       "reference/**",
       ".freebuff/**",
       "**/build/**",
       "coverage/**",
-      "dist/**",
+      "**/dist/**",
     ],
   },
   js.configs.recommended,
   {
-    files: ["**/*.js"],
+    files: ["**/*.{js,mjs,cjs}"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
