@@ -1,0 +1,168 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "MeowScript",
+  "scopeName": "source.meowscript",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#block-calls" },
+    { "include": "#hat-events" },
+    { "include": "#property-keys" },
+    { "include": "#keywords" },
+    { "include": "#constants" },
+    { "include": "#operators" },
+    { "include": "#punctuation" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.meowscript",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.meowscript",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.meowscript",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [{ "include": "#string-escapes" }]
+        },
+        {
+          "name": "string.quoted.single.meowscript",
+          "begin": "'",
+          "end": "'",
+          "patterns": [{ "include": "#string-escapes" }]
+        }
+      ]
+    },
+    "string-escapes": {
+      "name": "constant.character.escape.meowscript",
+      "match": "\\\\(n|t|r|\"|'|\\\\)"
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.meowscript",
+          "match": "\\b\\d+(\\.\\d+)?([eE][+-]?\\d+)?\\b"
+        },
+        {
+          "name": "constant.numeric.meowscript",
+          "match": "(?<![\\w.])\\.\\d+([eE][+-]?\\d+)?\\b"
+        }
+      ]
+    },
+    "block-calls": {
+      "patterns": [
+        {
+          "match": "\\b(motion|looks|sound|sensing|operators|control|events|pen|pm)(\\.)([A-Za-z_$][\\w$]*)",
+          "captures": {
+            "1": { "name": "support.module.meowscript" },
+            "2": { "name": "punctuation.accessor.meowscript" },
+            "3": { "name": "support.function.meowscript" }
+          }
+        }
+      ]
+    },
+    "hat-events": {
+      "patterns": [
+        {
+          "match": "\\b(greenFlag|keyPressed|spriteClicked|stageClicked|cloneStart|broadcast|broadcastReceived|backdropSwitchesTo|loudnessGreaterThan|timerGreaterThan)\\b(?=\\s*[({]|\\s*$)",
+          "name": "support.function.hat.meowscript"
+        }
+      ]
+    },
+    "property-keys": {
+      "patterns": [
+        {
+          "match": "\\b(layer|costumes|sounds)\\b(?=\\s*:)",
+          "name": "variable.other.property.meowscript"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "match": "\\bsprite\\b(?=\")",
+          "name": "keyword.other.sprite.meowscript"
+        },
+        {
+          "match": "\\bstage\\b(?=\\s*\\{)",
+          "name": "keyword.other.stage.meowscript"
+        },
+        {
+          "match": "\\b(let|cloud|list|function|returning|warp)\\b",
+          "name": "keyword.other.declaration.meowscript"
+        },
+        {
+          "match": "\\b(when|if|else|repeat|while|forever|return)\\b",
+          "name": "keyword.control.meowscript"
+        },
+        {
+          "match": "\\b(and|or|not)\\b",
+          "name": "keyword.operator.word.meowscript"
+        },
+        {
+          "match": "\\b(boolean|number|string)\\b(?=\\s*[,)])",
+          "name": "storage.type.meowscript"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "match": "\\b(true|false)\\b",
+          "name": "constant.language.meowscript"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "match": "(\\+=|-=|\\*=|/=|==|!=|<=|>=|&&|\\|\\||[+\\-*/%=<>!])",
+          "name": "keyword.operator.meowscript"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "match": "[{}]",
+          "name": "punctuation.section.block.meowscript"
+        },
+        {
+          "match": "[()]",
+          "name": "punctuation.section.group.meowscript"
+        },
+        {
+          "match": "[\\[\\]]",
+          "name": "punctuation.section.array.meowscript"
+        },
+        {
+          "match": ",",
+          "name": "punctuation.separator.meowscript"
+        },
+        {
+          "match": ";",
+          "name": "punctuation.terminator.meowscript"
+        },
+        {
+          "match": ":",
+          "name": "punctuation.separator.key-value.meowscript"
+        },
+        {
+          "match": "\\.",
+          "name": "punctuation.accessor.meowscript"
+        }
+      ]
+    }
+  }
+}

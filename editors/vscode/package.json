@@ -42,6 +42,13 @@
         "language": "meowscript",
         "path": "./snippets/meowscript.json"
       }
+    ],
+    "grammars": [
+      {
+        "language": "meowscript",
+        "scopeName": "source.meowscript",
+        "path": "./syntaxes/meowscript.tmLanguage.json"
+      }
     ]
   },
   "scripts": {
