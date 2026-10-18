@@ -17,6 +17,8 @@ export default [
       "**/build/**",
       "coverage/**",
       "**/dist/**",
+      // VS Code web builds downloaded by @vscode/test-web
+      "**/.vscode-test-web/**",
     ],
   },
   js.configs.recommended,
