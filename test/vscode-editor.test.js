@@ -105,7 +105,8 @@ test("snippets: every snippet has a prefix and body", () => {
 });
 
 test("manifest: contributions point at files that exist", () => {
-  assert.equal(manifest.browser, "./dist/web/extension.js");
+  assert.equal(manifest.main, "./dist/extension.js");
+  assert.equal(manifest.browser, "./dist/extension.js");
   assert.deepEqual(manifest.extensionKind, ["ui", "workspace"]);
   const [language] = manifest.contributes.languages;
   assert.equal(language.id, "meowscript");

@@ -17,7 +17,8 @@
     "Programming Languages",
     "Linters"
   ],
-  "browser": "./dist/web/extension.js",
+  "main": "./dist/extension.js",
+  "browser": "./dist/extension.js",
   "extensionKind": [
     "ui",
     "workspace"
@@ -55,7 +56,7 @@
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc --noEmit",
-    "test:web": "node .vscode-test.mjs",
+    "test:web": "npm run build && node .vscode-test.mjs",
     "package": "vsce package"
   },
   "devDependencies": {

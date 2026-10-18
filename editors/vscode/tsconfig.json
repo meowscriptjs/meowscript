@@ -10,5 +10,5 @@
     "allowJs": true,
     "types": ["vscode"]
   },
-  "include": ["src"]
+  "include": ["src", "test"]
 }

@@ -1,17 +1,16 @@
-// Bundles the MeowScript extension into a single ESM file that both the
-// desktop extension host and the web (browser worker) extension host can load.
+// Bundles the MeowScript extension (and its web smoke tests) into single ESM
+// files that both the desktop extension host and the web (browser worker)
+// extension host can load.
 //
-//   node esbuild.mjs          one-shot build -> dist/web/extension.js
+//   node esbuild.mjs          one-shot build -> dist/web/
 //   node esbuild.mjs --watch  rebuild on change
 import * as esbuild from "esbuild";
 
 const watch = process.argv.includes("--watch");
 
 /** @type {import("esbuild").BuildOptions} */
-const options = {
-  entryPoints: ["src/extension.ts"],
+const common = {
   bundle: true,
-  outfile: "dist/web/extension.js",
   format: "esm",
   platform: "browser",
   target: "es2022",
@@ -21,9 +20,30 @@ const options = {
   logLevel: "info",
 };
 
+const builds = [
+  {
+    ...common,
+    // The extension host (desktop and web worker alike) loads the entry
+    // point with a CommonJS loader, so both bundles are CJS.
+    format: "cjs",
+    entryPoints: ["src/extension.ts"],
+    outfile: "dist/extension.js",
+  },
+  {
+    ...common,
+    // The web extension host loads the tests path with a CommonJS loader,
+    // so this bundle must be CJS too.
+    format: "cjs",
+    entryPoints: ["test/suite/index.ts"],
+    outfile: "dist/test/index.js",
+  },
+];
+
 if (watch) {
-  const context = await esbuild.context(options);
-  await context.watch();
+  const contexts = await Promise.all(
+    builds.map((options) => esbuild.context(options)),
+  );
+  await Promise.all(contexts.map((context) => context.watch()));
 } else {
-  await esbuild.build(options);
+  await Promise.all(builds.map((options) => esbuild.build(options)));
 }

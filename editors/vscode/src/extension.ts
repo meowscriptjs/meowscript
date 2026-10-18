@@ -87,9 +87,11 @@ class MeowScriptCompletionProvider implements vscode.CompletionItemProvider {
       .text.slice(0, position.character);
 
     // `<qualifier>.<typed>` context: category blocks or list methods.
-    const dotted = /([A-Za-z_$][\w$]*)\.([A-Za-z_$][\w$]*)$/.exec(linePrefix);
+    // `typed` may be empty (the user just typed the dot).
+    const dotted = /([A-Za-z_$][\w$]*)\.([A-Za-z_$][\w$]*)?$/.exec(linePrefix);
     if (dotted) {
-      const [, qualifier, typed] = dotted;
+      const qualifier = dotted[1];
+      const typed = dotted[2] ?? "";
       const replaceRange = new vscode.Range(
         position.line,
         position.character - typed.length,
