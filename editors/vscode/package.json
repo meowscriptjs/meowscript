@@ -57,7 +57,7 @@
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc --noEmit",
     "test:web": "npm run build && node .vscode-test.mjs",
-    "package": "vsce package"
+    "package": "npm run build && vsce package"
   },
   "devDependencies": {
     "@types/vscode": "1.85",
