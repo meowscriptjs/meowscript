@@ -11,7 +11,8 @@
   },
   "exports": {
     ".": "./src/index.js",
-    "./catalog": "./src/catalog.js"
+    "./catalog": "./src/catalog.js",
+    "./language": "./src/language.js"
   },
   "files": [
     "bin",

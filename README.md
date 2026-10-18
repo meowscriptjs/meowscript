@@ -227,7 +227,7 @@ This provides both the `meowscript` and `ms` commands. Or add it to a project:
 npm install @meowscriptjs/meowscript
 ```
 
-Then use the programmatic API shown above, or the subpath export `@meowscriptjs/meowscript/catalog` for the raw block catalog.
+Then use the programmatic API shown above, the subpath export `@meowscriptjs/meowscript/catalog` for the raw block catalog, or `@meowscriptjs/meowscript/language` for the browser-safe lexer/parser/error/catalog modules (no Node built-ins — safe to bundle for the web).
 
 _For contributors:_ `npm install` then `npm test` (Node's built-in test runner). `npm run build:example` compiles `examples/player/` to `build/player.pmp`. Run `npm run lint` (ESLint) and `npm run format` (Prettier; `npm run format:check` in CI) to keep the tree clean.
 
