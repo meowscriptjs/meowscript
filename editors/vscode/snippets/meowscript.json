@@ -1,0 +1,97 @@
+{
+  "sprite": {
+    "prefix": "sprite",
+    "body": ["sprite \"${1:Cat}\" {", "\t$0", "}"],
+    "description": "Declare a sprite"
+  },
+  "stage": {
+    "prefix": "stage",
+    "body": ["stage {", "\t$0", "}"],
+    "description": "Declare the Stage"
+  },
+  "when greenFlag": {
+    "prefix": "whenflag",
+    "body": ["when greenFlag {", "\t$0", "}"],
+    "description": "Hat: run when the green flag is clicked"
+  },
+  "when keyPressed": {
+    "prefix": "whenkey",
+    "body": ["when keyPressed(\"${1:space}\") {", "\t$0", "}"],
+    "description": "Hat: run when a key is pressed"
+  },
+  "when spriteClicked": {
+    "prefix": "whenclick",
+    "body": ["when spriteClicked {", "\t$0", "}"],
+    "description": "Hat: run when this sprite is clicked"
+  },
+  "when broadcast": {
+    "prefix": "whenbroadcast",
+    "body": ["when broadcast(\"${1:message}\") {", "\t$0", "}"],
+    "description": "Hat: run when a broadcast is received"
+  },
+  "when cloneStart": {
+    "prefix": "whenclone",
+    "body": ["when cloneStart {", "\t$0", "}"],
+    "description": "Hat: run when this clone starts"
+  },
+  "let": {
+    "prefix": "let",
+    "body": ["let ${1:name} = ${2:0};"],
+    "description": "Declare a sprite-local variable"
+  },
+  "cloud let": {
+    "prefix": "cloudlet",
+    "body": ["cloud let ${1:name} = ${2:0};"],
+    "description": "Declare a cloud variable (Stage only)"
+  },
+  "list": {
+    "prefix": "list",
+    "body": ["list ${1:name} = [${2}];"],
+    "description": "Declare a list"
+  },
+  "if": {
+    "prefix": "if",
+    "body": ["if (${1:condition}) {", "\t$0", "}"],
+    "description": "If statement"
+  },
+  "if/else": {
+    "prefix": "ifelse",
+    "body": ["if (${1:condition}) {", "\t$2", "} else {", "\t$0", "}"],
+    "description": "If/else statement"
+  },
+  "repeat": {
+    "prefix": "repeat",
+    "body": ["repeat (${1:10}) {", "\t$0", "}"],
+    "description": "Repeat a fixed number of times"
+  },
+  "while": {
+    "prefix": "while",
+    "body": ["while (${1:condition}) {", "\t$0", "}"],
+    "description": "Loop while a condition holds"
+  },
+  "forever": {
+    "prefix": "forever",
+    "body": ["forever {", "\t$0", "}"],
+    "description": "Loop forever"
+  },
+  "function": {
+    "prefix": "function",
+    "body": ["function ${1:name}(${2}) {", "\t$0", "}"],
+    "description": "Declare a function"
+  },
+  "returning function": {
+    "prefix": "rfunction",
+    "body": ["returning function ${1:name}(${2}) {", "\t$0", "}"],
+    "description": "Declare a function that returns a value"
+  },
+  "warp function": {
+    "prefix": "wfunction",
+    "body": ["warp function ${1:name}(${2}) {", "\t$0", "}"],
+    "description": "Declare a function that runs without screen refresh"
+  },
+  "return": {
+    "prefix": "return",
+    "body": ["return ${1};"],
+    "description": "Return from a returning function"
+  }
+}

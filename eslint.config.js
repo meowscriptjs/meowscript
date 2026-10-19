@@ -11,17 +11,19 @@ export default [
   {
     // Vendored reference sources, dependencies and build output are never linted.
     ignores: [
-      "node_modules/**",
+      "**/node_modules/**",
       "reference/**",
       ".freebuff/**",
       "**/build/**",
       "coverage/**",
-      "dist/**",
+      "**/dist/**",
+      // VS Code web builds downloaded by @vscode/test-web
+      "**/.vscode-test-web/**",
     ],
   },
   js.configs.recommended,
   {
-    files: ["**/*.js"],
+    files: ["**/*.{js,mjs,cjs}"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",

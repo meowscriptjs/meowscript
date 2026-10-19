@@ -1,0 +1,74 @@
+{
+  "name": "meowscript-language",
+  "displayName": "MeowScript Language Features",
+  "description": "Syntax highlighting, diagnostics and completions for MeowScript (.ms) — runs on the web (vscode.dev) too.",
+  "version": "1.1.0",
+  "publisher": "meowscriptjs",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/meowscriptjs/meowscript",
+    "directory": "editors/vscode"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "main": "./dist/extension.js",
+  "browser": "./dist/extension.js",
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "activationEvents": [],
+  "contributes": {
+    "languages": [
+      {
+        "id": "meowscript",
+        "aliases": [
+          "MeowScript",
+          "meowscript"
+        ],
+        "extensions": [
+          ".ms"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "meowscript",
+        "path": "./snippets/meowscript.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "meowscript",
+        "scopeName": "source.meowscript",
+        "path": "./syntaxes/meowscript.tmLanguage.json"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test:web": "npm run build && node .vscode-test.mjs",
+    "package": "npm run build && vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "1.85",
+    "@vscode/test-web": "^0.0.81",
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  },
+  "allowScripts": {
+    "@playwright/browser-chromium@1.64.1": true,
+    "@vscode/vsce-sign@2.1.0": true,
+    "esbuild@0.28.2": true
+  }
+}

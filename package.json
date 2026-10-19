@@ -1,6 +1,6 @@
 {
   "name": "@meowscriptjs/meowscript",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Compile PenguinMod projects with a JS-like DSL.",
   "type": "module",
   "license": "Apache-2.0",
@@ -11,7 +11,8 @@
   },
   "exports": {
     ".": "./src/index.js",
-    "./catalog": "./src/catalog.js"
+    "./catalog": "./src/catalog.js",
+    "./language": "./src/language.js"
   },
   "files": [
     "bin",
