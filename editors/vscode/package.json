@@ -2,7 +2,7 @@
   "name": "meowscript-language",
   "displayName": "MeowScript Language Features",
   "description": "Syntax highlighting, diagnostics and completions for MeowScript (.ms) — runs on the web (vscode.dev) too.",
-  "version": "0.1.0",
+  "version": "1.1.0",
   "publisher": "meowscriptjs",
   "license": "Apache-2.0",
   "repository": {
@@ -65,5 +65,10 @@
     "@vscode/vsce": "^4.0.0",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2"
+  },
+  "allowScripts": {
+    "@playwright/browser-chromium@1.64.1": true,
+    "@vscode/vsce-sign@2.1.0": true,
+    "esbuild@0.28.2": true
   }
 }
