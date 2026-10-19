@@ -20,7 +20,7 @@ ESM file, so it runs on vscode.dev, github.dev, code-server and the desktop.
 ```bash
 cd editors/vscode
 npm install
-npm run build      # bundle to dist/web/extension.js
+npm run build      # bundle to dist/extension.js
 npm run typecheck  # tsc --noEmit
 npm run test:web   # smoke tests in a browser via @vscode/test-web
 ```
