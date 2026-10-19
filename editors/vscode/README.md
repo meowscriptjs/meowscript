@@ -38,4 +38,7 @@ from the repository, so it never goes out of sync with the language itself.
 npm run package    # -> meowscript-language-<version>.vsix
 ```
 
-Publishing happens in CI on version tags (VS Code Marketplace + Open VSX).
+Publishing to VS Code Marketplace and Open VSX happens in CI only when the pushed
+tag is `v<version>`, where `<version>` matches `editors/vscode/package.json`.
+Other release tags skip extension publishing. Bump the extension version before
+creating its matching tag for a new extension release; each version uses one tag.

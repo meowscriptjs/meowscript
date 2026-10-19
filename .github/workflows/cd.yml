@@ -42,9 +42,6 @@ jobs:
     defaults:
       run:
         working-directory: editors/vscode
-    env:
-      VSCE_PAT: ${{ secrets.VSCE_PAT }}
-      OVSX_PAT: ${{ secrets.OVSX_PAT }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -63,16 +60,29 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
       - name: Package extension
-        run: npx vsce package
+        run: npm run package
       - name: Read extension version
-        run: echo "VERSION=$(node -p "require('./package.json').version")" >> "$GITHUB_ENV"
-      - name: Warn about missing publisher tokens
-        if: env.VSCE_PAT == '' || env.OVSX_PAT == ''
-        run: |
-          echo "::warning::VSCE_PAT and/or OVSX_PAT secrets are not configured; the extension was NOT published to every marketplace."
+        id: extension
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Publish to Visual Studio Marketplace
-        if: env.VSCE_PAT != ''
-        run: npx vsce publish -p "$VSCE_PAT" --packagePath "meowscript-language-$VERSION.vsix"
+        if: github.ref_name == format('v{0}', steps.extension.outputs.version)
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          VERSION: ${{ steps.extension.outputs.version }}
+        run: |
+          if [ -z "$VSCE_PAT" ]; then
+            echo "::warning::VSCE_PAT secret is not configured; the extension was not published to Visual Studio Marketplace."
+            exit 0
+          fi
+          npx vsce publish -p "$VSCE_PAT" --packagePath "meowscript-language-$VERSION.vsix"
       - name: Publish to Open VSX
-        if: env.OVSX_PAT != ''
-        run: npx ovsx publish "meowscript-language-$VERSION.vsix" -p "$OVSX_PAT"
+        if: github.ref_name == format('v{0}', steps.extension.outputs.version)
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+          VERSION: ${{ steps.extension.outputs.version }}
+        run: |
+          if [ -z "$OVSX_PAT" ]; then
+            echo "::warning::OVSX_PAT secret is not configured; the extension was not published to Open VSX."
+            exit 0
+          fi
+          npx ovsx publish "meowscript-language-$VERSION.vsix" -p "$OVSX_PAT"
